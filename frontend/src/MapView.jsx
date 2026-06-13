@@ -302,25 +302,25 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !lastEvent || lastEvent.severity < 0.8) return;
-    const scenario = geoDataRef.current.features[0]; // source district would be lastEvent.source_district
-    // Zoom into source district if known, else just pulse
-    if (lastEvent.source_district) {
-      const f = geoDataRef.current.features.find(x => x.properties.district_id === lastEvent.source_district);
-      if (f) {
-        const [lat, lng] = f.geometry.coordinates[0][0]; // approx center
-        map.flyTo({
-          center: [f.geometry.coordinates[0][0][0], f.geometry.coordinates[0][0][1]],
-          zoom: 12.5,
-          pitch: 15,
-          bearing: (Math.random() - 0.5) * 24,
-          duration: 1600,
-          essential: true,
-        });
-        setTimeout(() => {
-          map.flyTo({ center: [-79.38, 43.68], zoom: 11.5, pitch: 10, bearing: 0, duration: 2000 });
-        }, 5000);
-      }
-    }
+    if (!lastEvent.source_district) return;
+
+    const f = geoDataRef.current.features.find(x => x.properties.district_id === lastEvent.source_district);
+    if (!f) return;
+
+    map.flyTo({
+      center: [f.geometry.coordinates[0][0][0], f.geometry.coordinates[0][0][1]],
+      zoom: 12.5,
+      pitch: 15,
+      bearing: (Math.random() - 0.5) * 24,
+      duration: 1600,
+      essential: true,
+    });
+
+    const returnTimer = setTimeout(() => {
+      map.flyTo({ center: [-79.38, 43.68], zoom: 11.5, pitch: 10, bearing: 0, duration: 2000 });
+    }, 5000);
+
+    return () => clearTimeout(returnTimer);
   }, [lastEvent]);
 
   // Wave animation on new events; baseline sync otherwise
@@ -338,6 +338,10 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
       lastEvent.team   !== lastProcessedEventRef.current.team
     );
 
+    // Build a lookup map once per render instead of .find() per district
+    const featureById = {};
+    geoDataRef.current.features.forEach(f => { featureById[f.properties.district_id] = f; });
+
     if (isNewEvent) {
       lastProcessedEventRef.current = lastEvent;
       timeoutsRef.current.forEach(id => clearTimeout(id));
@@ -349,7 +353,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         pendingDistrictsRef.current.add(districtId);
         const id = setTimeout(() => {
           pendingDistrictsRef.current.delete(districtId);
-          const feature = geoDataRef.current.features.find(f => f.properties.district_id === districtId);
+          const feature = featureById[districtId];
           if (feature) syncFeature(feature, state);
           scheduleMapUpdate();
         }, rank * stepMs);
@@ -359,7 +363,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
       let changed = false;
       entries.forEach(([districtId, state]) => {
         if (!pendingDistrictsRef.current.has(districtId)) {
-          const feature = geoDataRef.current.features.find(f => f.properties.district_id === districtId);
+          const feature = featureById[districtId];
           if (feature) {
             const { color } = getEmotionColor(state.emotion);
             if (feature.properties.fill_color !== color) {

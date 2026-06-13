@@ -59,8 +59,9 @@ export default function App() {
 
   // Update ambience crossfade on every district state change
   useEffect(() => {
-    if (!districts.length) return;
-    const avg = districts.reduce((sum, d) => sum + (d.emotion?.excitement ?? 0), 0) / districts.length;
+    const vals = Object.values(districts);
+    if (!vals.length) return;
+    const avg = vals.reduce((sum, d) => sum + (d.emotion?.excitement ?? 0), 0) / vals.length;
     setAmbience(avg);
   }, [districts]);
 
