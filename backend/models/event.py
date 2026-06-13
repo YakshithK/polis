@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Annotated
-
 from pydantic import BaseModel, Field
 
 
@@ -21,9 +19,9 @@ class MatchEvent(BaseModel):
     minute: int = Field(
         ...,
         ge=0,
-        description="Match minute when the event occurred (0-indexed)",
+        le=120,
+        description="Match minute (0–120 incl. extra time)",
     )
-    severity: Annotated[float, Field(ge=0.0, le=1.0)] = Field(
-        default=1.0,
-        description="Impact weight of this event in the range [0.0, 1.0]",
+    severity: float = Field(
+        default=1.0, ge=0.0, le=1.0, description="Impact magnitude 0–1"
     )

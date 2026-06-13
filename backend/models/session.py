@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
@@ -18,7 +19,7 @@ class SimSession(BaseModel):
     """Top-level simulation session document stored in MongoDB."""
 
     session_id: str = Field(
-        ...,
+        default_factory=lambda: str(uuid.uuid4()),
         description="Unique identifier for this simulation run",
     )
     scenario_id: str = Field(

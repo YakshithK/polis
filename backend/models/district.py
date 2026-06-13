@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
 class EmotionState(BaseModel):
@@ -55,22 +55,26 @@ DominantEmotion = Literal["excitement", "tension", "frustration", "pride"]
 class DistrictState(BaseModel):
     """Full simulation state for a single city district."""
 
-    id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    district_id: str
     emotion: EmotionState = Field(default_factory=EmotionState)
     alignment: AlignmentState = Field(default_factory=AlignmentState)
     activity: ActivityState = Field(default_factory=ActivityState)
-    dominant: DominantEmotion = "excitement"
-    trend: float = 0.0
+    trend: float = Field(
+        default=0.0,
+        description="Rate of change of dominant emotion per tick, range [-1, 1]",
+    )
     recent_events: list[RecentEvent] = Field(default_factory=list)
 
-    @model_validator(mode="after")
-    def compute_dominant(self) -> "DistrictState":
-        """Recompute the dominant emotion from the current emotion sub-model."""
+    @computed_field  # type: ignore[misc]
+    @property
+    def dominant(self) -> DominantEmotion:
+        """Derives the dominant emotion live from the current emotion sub-model."""
         scores: dict[str, float] = {
             "excitement": self.emotion.excitement,
             "tension": self.emotion.tension,
             "frustration": self.emotion.frustration,
             "pride": self.emotion.pride,
         }
-        self.dominant = max(scores, key=lambda k: scores[k])  # type: ignore[assignment]
-        return self
+        return max(scores, key=lambda k: scores[k])  # type: ignore[return-value]
