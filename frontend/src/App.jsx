@@ -12,8 +12,11 @@ const EVENTS = [
 ];
 
 export default function App() {
-  const { districts, feedEntries, connected, injectEvent, lastEvent } = useSimulation();
+  const { districts, feedEntries, connected, injectEvent, lastEvent, autopilotStatus, triggerAutopilot } = useSimulation();
   const [activeBtn, setActiveBtn] = useState(null);
+  const [strictness, setStrictness] = useState('conservative');
+
+  const autopilotActive = autopilotStatus === 'generating' || autopilotStatus === 'running';
 
   const stepMs = lastEvent
     ? lastEvent.severity >= 0.8 ? 80 : lastEvent.severity <= 0.4 ? 180 : 120
@@ -24,6 +27,21 @@ export default function App() {
     setActiveBtn(ev.label);
     setTimeout(() => setActiveBtn(null), 300);
   };
+
+  const handleAutopilot = () => {
+    if (autopilotActive) {
+      triggerAutopilot('stop');
+    } else {
+      triggerAutopilot('start', strictness);
+    }
+  };
+
+  const autopilotLabel = {
+    idle: '🤖 Autopilot',
+    generating: '⏳ Generating…',
+    running: '⏹ Stop Autopilot',
+    finished: '🤖 Autopilot',
+  }[autopilotStatus] ?? '🤖 Autopilot';
 
   return (
     <div className="app">
@@ -63,6 +81,24 @@ export default function App() {
             {ev.label}
           </button>
         ))}
+        <div className="autopilot-controls">
+          <select
+            className="strictness-select"
+            value={strictness}
+            onChange={e => setStrictness(e.target.value)}
+            disabled={autopilotActive}
+          >
+            <option value="conservative">Conservative</option>
+            <option value="expressive">Expressive</option>
+          </select>
+          <button
+            className={`event-btn autopilot-btn ${autopilotActive ? 'active' : ''}`}
+            onClick={handleAutopilot}
+            disabled={autopilotStatus === 'generating'}
+          >
+            {autopilotLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

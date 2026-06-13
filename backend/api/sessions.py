@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pydantic import BaseModel
 
 from backend.database import get_db
 from backend.models.event import MatchEvent
@@ -59,3 +60,22 @@ async def inject_event(
         raise HTTPException(status_code=404, detail="Session not found")
     await engine.inject_event(event)
     return {"status": "queued", "event": event.model_dump()}
+
+
+class AutopilotRequest(BaseModel):
+    action: str  # "start" | "stop"
+    strictness: str = "conservative"  # "conservative" | "expressive"
+
+
+@router.post("/{session_id}/autopilot", status_code=202)
+async def autopilot(session_id: str, req: AutopilotRequest):
+    engine = _engines.get(session_id)
+    if not engine:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if req.action == "start":
+        await engine.start_autopilot(expressive=req.strictness == "expressive")
+        return {"status": "autopilot_started", "strictness": req.strictness}
+    elif req.action == "stop":
+        await engine.stop_autopilot()
+        return {"status": "autopilot_stopped"}
+    raise HTTPException(status_code=400, detail="action must be 'start' or 'stop'")

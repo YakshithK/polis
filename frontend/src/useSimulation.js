@@ -8,6 +8,7 @@ export function useSimulation() {
   const [feedEntries, setFeedEntries] = useState([]);
   const [connected, setConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState(null);
+  const [autopilotStatus, setAutopilotStatus] = useState('idle'); // idle | generating | running | finished
   const wsRef = useRef(null);
 
   const connect = useCallback(async () => {
@@ -37,6 +38,9 @@ export function useSimulation() {
       if (msg.type === 'feed') {
         setFeedEntries(prev => [msg, ...prev].slice(0, 50));
       }
+      if (msg.type === 'autopilot') {
+        setAutopilotStatus(msg.status);
+      }
     };
 
     return session.session_id;
@@ -51,10 +55,20 @@ export function useSimulation() {
     });
   }, [sessionId]);
 
+  const triggerAutopilot = useCallback(async (action, strictness = 'conservative') => {
+    if (!sessionId) return;
+    await fetch(`${API_BASE}/session/${sessionId}/autopilot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, strictness }),
+    });
+    if (action === 'stop') setAutopilotStatus('idle');
+  }, [sessionId]);
+
   useEffect(() => {
     connect();
     return () => wsRef.current?.close();
   }, []);
 
-  return { sessionId, districts, feedEntries, connected, injectEvent, lastEvent };
+  return { sessionId, districts, feedEntries, connected, injectEvent, lastEvent, autopilotStatus, triggerAutopilot };
 }

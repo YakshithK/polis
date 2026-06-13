@@ -11,6 +11,7 @@ from backend.models.event import MatchEvent
 from backend.services.scenario import ScenarioConfig
 from backend.services.rules import apply_event, compute_influence, decay_state
 from backend.services.narrator import generate_feed_text, pick_key_districts
+from backend.services.director import generate_timeline
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class SimulationEngine:
         self.event_queue: asyncio.Queue[MatchEvent] = asyncio.Queue()
         self._running = False
         self._task: asyncio.Task | None = None
+        self._autopilot_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Load district states from DB and start the background processing loop."""
@@ -35,6 +37,7 @@ class SimulationEngine:
     async def stop(self) -> None:
         """Stop the processing loop gracefully."""
         self._running = False
+        await self.stop_autopilot()
         if self._task:
             self._task.cancel()
             try:
@@ -42,6 +45,34 @@ class SimulationEngine:
             except asyncio.CancelledError:
                 pass
         logger.info("Simulation engine stopped.")
+
+    async def start_autopilot(self, expressive: bool = False) -> None:
+        """Generate a match timeline and dispatch events with realistic timing."""
+        await self.stop_autopilot()
+        self._autopilot_task = asyncio.create_task(self._autopilot_loop(expressive))
+
+    async def stop_autopilot(self) -> None:
+        if self._autopilot_task and not self._autopilot_task.done():
+            self._autopilot_task.cancel()
+            try:
+                await self._autopilot_task
+            except asyncio.CancelledError:
+                pass
+        self._autopilot_task = None
+
+    async def _autopilot_loop(self, expressive: bool) -> None:
+        context = self.scenario.director_context
+        await self.ws_manager.broadcast({"type": "autopilot", "status": "generating"})
+        timeline = await generate_timeline(context, expressive=expressive)
+        await self.ws_manager.broadcast({"type": "autopilot", "status": "running", "events": len(timeline)})
+        logger.info("Autopilot starting: %d events, expressive=%s", len(timeline), expressive)
+        prev_minute = 0
+        for event in timeline:
+            gap = max(4, min(12, event.minute - prev_minute))
+            await asyncio.sleep(gap)
+            await self.inject_event(event)
+            prev_minute = event.minute
+        await self.ws_manager.broadcast({"type": "autopilot", "status": "finished"})
 
     async def inject_event(self, event: MatchEvent) -> None:
         """Enqueue an event for processing."""
