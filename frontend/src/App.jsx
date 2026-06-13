@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import MapView from './MapView';
+import Scoreboard from './Scoreboard';
 import { useSimulation } from './useSimulation';
 
 const EVENTS = [
@@ -15,8 +16,31 @@ export default function App() {
   const { districts, feedEntries, connected, injectEvent, lastEvent, autopilotStatus, triggerAutopilot } = useSimulation();
   const [activeBtn, setActiveBtn] = useState(null);
   const [strictness, setStrictness] = useState('conservative');
+  const [score, setScore] = useState({ canada: 0, opponent: 0 });
+  const [matchMinute, setMatchMinute] = useState(0);
+  const clockRef = useRef(null);
 
   const autopilotActive = autopilotStatus === 'generating' || autopilotStatus === 'running';
+
+  // Track score from goal events
+  useEffect(() => {
+    if (lastEvent?.type === 'goal') {
+      setScore(prev => ({ ...prev, [lastEvent.team]: prev[lastEvent.team] + 1 }));
+    }
+  }, [lastEvent]);
+
+  // Match clock: starts on connect, 1 real second = 1 match minute
+  useEffect(() => {
+    if (!connected) return;
+    if (clockRef.current) return;
+    clockRef.current = setInterval(() => setMatchMinute(m => Math.min(m + 1, 90)), 1000);
+    return () => { clearInterval(clockRef.current); clockRef.current = null; };
+  }, [connected]);
+
+  const districtList = Object.values(districts);
+  const cityMood = districtList.length
+    ? districtList.reduce((sum, d) => sum + (d.emotion?.excitement ?? 50), 0) / districtList.length
+    : 50;
 
   const stepMs = lastEvent
     ? lastEvent.severity >= 0.8 ? 80 : lastEvent.severity <= 0.4 ? 180 : 120
@@ -48,6 +72,7 @@ export default function App() {
       <div className="main-layout">
         <div className="map-container">
           <MapView districts={districts} stepMs={stepMs} />
+          <Scoreboard score={score} matchMinute={matchMinute} cityMood={cityMood} />
         </div>
         <div className="sidebar">
           <h2>

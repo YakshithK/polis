@@ -16,14 +16,22 @@ export default function MapView({ districts, stepMs = 120 }) {
     const map = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      center: [-79.3832, 43.6532],
-      zoom: 10.5,
-      pitch: 45,
-      bearing: -15,
+      center: [-79.38, 43.695],
+      zoom: 10.8,
+      pitch: 55,
+      bearing: -10,
     });
     mapRef.current = map;
 
     map.on('load', () => {
+      map.setFog({
+        color: 'rgb(8, 8, 20)',
+        'high-color': 'rgb(15, 15, 40)',
+        'horizon-blend': 0.04,
+        'space-color': 'rgb(4, 4, 15)',
+        'star-intensity': 0.6,
+      });
+
       map.addSource('toronto-districts', {
         type: 'geojson',
         data: geoDataRef.current,
@@ -34,8 +42,13 @@ export default function MapView({ districts, stepMs = 120 }) {
         type: 'fill',
         source: 'toronto-districts',
         paint: {
-          'fill-color': '#1e3a8a',
-          'fill-opacity': 0.3,
+          'fill-color': [
+            'interpolate', ['linear'], ['get', 'excitement'],
+            0, '#0f172a',
+            50, '#1e3a8a',
+            100, '#7c2d12',
+          ],
+          'fill-opacity': 0.4,
         },
       });
 
@@ -46,19 +59,37 @@ export default function MapView({ districts, stepMs = 120 }) {
         paint: {
           'fill-extrusion-color': [
             'interpolate', ['linear'], ['get', 'excitement'],
-            0, '#1e3a8a',
-            50, '#f97316',
-            100, '#ef4444'
+            0,   '#0f172a',
+            25,  '#1e3a8a',
+            50,  '#2563eb',
+            70,  '#f97316',
+            85,  '#ef4444',
+            100, '#dc2626',
           ],
           'fill-extrusion-height': [
             'interpolate', ['linear'], ['get', 'excitement'],
-            0, 10,
-            100, 500
+            0, 25,
+            100, 650,
           ],
-          'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.85,
-          'fill-extrusion-height-transition': { duration: 800, delay: 0 },
-          'fill-extrusion-color-transition': { duration: 800, delay: 0 },
+          'fill-extrusion-base': [
+            'interpolate', ['linear'], ['get', 'excitement'],
+            0, 0,
+            100, 20,
+          ],
+          'fill-extrusion-opacity': 0.88,
+          'fill-extrusion-height-transition': { duration: 900, delay: 0 },
+          'fill-extrusion-color-transition': { duration: 900, delay: 0 },
+        },
+      });
+
+      map.addLayer({
+        id: 'districts-outline',
+        type: 'line',
+        source: 'toronto-districts',
+        paint: {
+          'line-color': '#334155',
+          'line-width': 1,
+          'line-opacity': 0.6,
         },
       });
     });

@@ -33,6 +33,27 @@ body { font-family: sans-serif; background: #0a0a0f; color: #fff; height: 100vh;
 .feed-ts { font-size: 10px; color: #444; margin-left: auto; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff4444; display: inline-block; margin-right: 8px; }
 .status-dot.connected { background: #44ff88; }
+.map-container { position: relative; }
+.scoreboard {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(10, 10, 20, 0.88); backdrop-filter: blur(12px);
+  border: 1px solid #1e293b; border-radius: 12px;
+  padding: 10px 20px; z-index: 10; min-width: 280px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+}
+.scoreboard-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.team-block { display: flex; align-items: center; gap: 8px; }
+.team-block.opponent { flex-direction: row-reverse; }
+.team-flag { font-size: 20px; }
+.team-name { font-size: 13px; font-weight: 700; color: #94a3b8; letter-spacing: 1px; }
+.team-score { font-size: 28px; font-weight: 800; color: #fff; line-height: 1; min-width: 24px; text-align: center; }
+.match-clock { text-align: center; }
+.clock-min { font-size: 15px; font-weight: 700; color: #f97316; letter-spacing: 1px; }
+.mood-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.mood-label { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.mood-track { flex: 1; height: 4px; background: #1e293b; border-radius: 2px; overflow: hidden; }
+.mood-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease, background 0.8s ease; }
+.mood-pct { font-size: 11px; color: #64748b; min-width: 30px; text-align: right; }
 .autopilot-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .strictness-select { background: #1a1a2e; color: #fff; border: 1px solid #333; border-radius: 6px; padding: 8px 10px; font-size: 13px; cursor: pointer; }
 .strictness-select:disabled { opacity: 0.5; cursor: not-allowed; }

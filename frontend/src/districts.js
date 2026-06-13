@@ -1,44 +1,57 @@
-// Toronto district approximate boundaries (roughly 2km x 2km boxes around centroids)
-// Each feature has id = district_id string, plus properties.district_id and excitement: 50
+// Toronto district boundaries — real approximate neighbourhood polygons
+// Coordinates: [longitude, latitude] (GeoJSON order)
 
-function makeRect(id, name, lat, lon) {
-  const dLon = 0.025;
-  const dLat = 0.015;
+function poly(id, name, coords) {
   return {
     type: 'Feature',
-    id: id,
-    properties: {
-      district_id: id,
-      name: name,
-      excitement: 50,
-    },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[
-        [lon - dLon, lat - dLat],
-        [lon + dLon, lat - dLat],
-        [lon + dLon, lat + dLat],
-        [lon - dLon, lat + dLat],
-        [lon - dLon, lat - dLat],
-      ]],
-    },
+    id,
+    properties: { district_id: id, name, excitement: 50 },
+    geometry: { type: 'Polygon', coordinates: [[...coords, coords[0]]] },
   };
+}
+
+function rect(id, name, lonMin, latMin, lonMax, latMax) {
+  return poly(id, name, [
+    [lonMin, latMin], [lonMax, latMin], [lonMax, latMax], [lonMin, latMax],
+  ]);
 }
 
 export const DISTRICTS_GEOJSON = {
   type: 'FeatureCollection',
   features: [
-    makeRect('scarborough',     'Scarborough',     43.7764, -79.2318),
-    makeRect('north_york',      'North York',      43.7615, -79.4111),
-    makeRect('etobicoke',       'Etobicoke',       43.6205, -79.5132),
-    makeRect('downtown',        'Downtown',        43.6532, -79.3832),
-    makeRect('yorkville',       'Yorkville',       43.6709, -79.3957),
-    makeRect('kensington',      'Kensington',      43.6547, -79.4005),
-    makeRect('little_portugal', 'Little Portugal', 43.6490, -79.4390),
-    makeRect('little_italy',    'Little Italy',    43.6610, -79.4197),
-    makeRect('rosedale',        'Rosedale',        43.6782, -79.3777),
-    makeRect('east_york',       'East York',       43.6920, -79.3194),
-    makeRect('west_end',        'West End',        43.6426, -79.4559),
-    makeRect('midtown',         'Midtown',         43.6977, -79.3855),
+    // --- Large outer districts with irregular shapes ---
+    poly('scarborough', 'Scarborough', [
+      [-79.300, 43.700], [-79.218, 43.697], [-79.155, 43.712],
+      [-79.155, 43.835], [-79.248, 43.840], [-79.300, 43.818],
+    ]),
+    poly('north_york', 'North York', [
+      [-79.540, 43.722], [-79.295, 43.722], [-79.280, 43.775],
+      [-79.295, 43.815], [-79.402, 43.822], [-79.482, 43.810],
+      [-79.540, 43.778],
+    ]),
+    poly('etobicoke', 'Etobicoke', [
+      [-79.648, 43.578], [-79.488, 43.578], [-79.488, 43.622],
+      [-79.508, 43.690], [-79.522, 43.762], [-79.648, 43.762],
+    ]),
+
+    // --- Inner downtown core ---
+    poly('downtown', 'Downtown', [
+      [-79.402, 43.635], [-79.328, 43.633], [-79.323, 43.650],
+      [-79.328, 43.668], [-79.402, 43.668],
+    ]),
+
+    // --- North of Bloor ---
+    rect('yorkville',  'Yorkville',  -79.415, 43.665, -79.390, 43.685),
+    rect('rosedale',   'Rosedale',   -79.390, 43.665, -79.348, 43.695),
+    rect('midtown',    'Midtown',    -79.440, 43.688, -79.348, 43.728),
+
+    // --- West side ---
+    rect('kensington',      'Kensington',      -79.428, 43.643, -79.398, 43.668),
+    rect('little_italy',    'Little Italy',    -79.442, 43.648, -79.408, 43.678),
+    rect('little_portugal', 'Little Portugal', -79.472, 43.630, -79.430, 43.662),
+    rect('west_end',        'West End',        -79.528, 43.615, -79.432, 43.700),
+
+    // --- East ---
+    rect('east_york', 'East York', -79.350, 43.665, -79.278, 43.730),
   ],
 };
