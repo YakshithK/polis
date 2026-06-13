@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 class SimulationEngine:
-    def __init__(self, db: AsyncIOMotorDatabase, scenario: ScenarioConfig):
+    def __init__(self, db: AsyncIOMotorDatabase, scenario: ScenarioConfig, ws_manager=None):
         self.db = db
         self.scenario = scenario
+        self.ws_manager = ws_manager
         self.event_queue: asyncio.Queue[MatchEvent] = asyncio.Queue()
         self._running = False
         self._task: asyncio.Task | None = None
@@ -96,9 +97,22 @@ class SimulationEngine:
         influenced: list[tuple[DistrictState, int]],
         event: MatchEvent,
     ) -> None:
-        """Broadcast state update to WebSocket clients (stub — wired in Phase 2)."""
-        pass  # WebSocket manager injected in Phase 2
+        """Broadcast state update to WebSocket clients."""
+        if not self.ws_manager:
+            return
+        payload = {
+            "type": "update",
+            "event": event.model_dump(),
+            "districts": [
+                {**s.model_dump(), "distance_rank": rank}
+                for s, rank in influenced
+            ],
+        }
+        await self.ws_manager.broadcast(payload)
 
     async def _broadcast_pulse(self) -> None:
-        """Broadcast heartbeat to WebSocket clients (stub — wired in Phase 2)."""
-        pass  # WebSocket manager injected in Phase 2
+        """Broadcast heartbeat to WebSocket clients."""
+        if not self.ws_manager:
+            return
+        import time
+        await self.ws_manager.broadcast({"type": "pulse", "timestamp": int(time.time())})

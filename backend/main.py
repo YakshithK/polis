@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from backend.database import lifespan as db_lifespan
 from backend.api.sessions import router as sessions_router
 from backend.api.sessions import stop_all_engines
+from backend.api.websocket import router as ws_router
 
 
 @asynccontextmanager
@@ -31,3 +32,4 @@ app = FastAPI(
 # Routes
 # ---------------------------------------------------------------------------
 app.include_router(sessions_router)
+app.include_router(ws_router)

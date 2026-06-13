@@ -9,6 +9,7 @@ from backend.models.session import SimSession
 from backend.services.scenario import load_scenario
 from backend.services.seeder import seed_districts
 from backend.services.engine import SimulationEngine
+from backend.services.websocket_manager import ws_manager
 
 router = APIRouter(prefix="/session", tags=["session"])
 
@@ -31,7 +32,7 @@ async def create_session(db: AsyncIOMotorDatabase = Depends(get_db)):
     await seed_districts(db, scenario)
     session = SimSession(scenario_id=scenario.scenario_id)
     await db["sessions"].insert_one(session.model_dump())
-    engine = SimulationEngine(db=db, scenario=scenario)
+    engine = SimulationEngine(db=db, scenario=scenario, ws_manager=ws_manager)
     await engine.start()
     _engines[session.session_id] = engine
     return session
