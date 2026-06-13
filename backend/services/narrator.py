@@ -9,16 +9,12 @@ from backend.models.event import MatchEvent
 
 logger = logging.getLogger(__name__)
 
-_client: AsyncOpenAI | None = None
-
 def _get_client() -> AsyncOpenAI:
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(
-            api_key=os.getenv("HACKCLUB_AI_KEY", ""),
-            base_url="https://ai.hackclub.com/proxy/v1",
-        )
-    return _client
+    key = os.getenv("HACKCLUB_API_KEY") or os.getenv("HACKCLUB_AI_KEY") or ""
+    return AsyncOpenAI(
+        api_key=key,
+        base_url="https://ai.hackclub.com/proxy/v1",
+    )
 
 _EVENT_LABELS = {
     ("goal", "canada"): "Canada scored a goal",
