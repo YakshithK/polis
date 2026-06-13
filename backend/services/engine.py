@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -9,6 +10,7 @@ from backend.models.district import DistrictState
 from backend.models.event import MatchEvent
 from backend.services.scenario import ScenarioConfig
 from backend.services.rules import apply_event, compute_influence, decay_state
+from backend.services.narrator import generate_feed_text, pick_key_districts
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,7 @@ class SimulationEngine:
             decay_state(district_state)
             await self._save_state(district_state)
         await self._broadcast_update(influenced, event)
+        asyncio.create_task(self._broadcast_feed(influenced, event))
 
     async def _decay_tick(self) -> None:
         """Apply decay to all district states."""
@@ -110,9 +113,31 @@ class SimulationEngine:
         }
         await self.ws_manager.broadcast(payload)
 
+    async def _broadcast_feed(
+        self,
+        influenced: list[tuple[DistrictState, int]],
+        event: MatchEvent,
+    ) -> None:
+        """Generate and broadcast social feed posts for 2-3 key districts (non-blocking)."""
+        if not self.ws_manager:
+            return
+        key_districts = pick_key_districts(
+            influenced, self.scenario.district_alignments
+        )
+        tasks = [generate_feed_text(event, state) for state in key_districts]
+        texts = await asyncio.gather(*tasks, return_exceptions=True)
+        ts = int(time.time())
+        for state, result in zip(key_districts, texts):
+            text = result if isinstance(result, str) else f"The city is reacting to minute {event.minute}."
+            await self.ws_manager.broadcast({
+                "type": "feed",
+                "district": state.district_id,
+                "text": text,
+                "ts": ts,
+            })
+
     async def _broadcast_pulse(self) -> None:
         """Broadcast heartbeat to WebSocket clients."""
         if not self.ws_manager:
             return
-        import time
         await self.ws_manager.broadcast({"type": "pulse", "timestamp": int(time.time())})

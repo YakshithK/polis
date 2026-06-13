@@ -11,7 +11,25 @@ body { font-family: sans-serif; background: #0a0a0f; color: #fff; height: 100vh;
 .event-btn { padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; background: #1a1a2e; color: #fff; border: 1px solid #333; transition: background 0.2s; }
 .event-btn:hover { background: #2a2a4e; }
 .event-btn.active { background: #3a3a6e; border-color: #6666cc; }
-.feed-entry { padding: 10px 0; border-bottom: 1px solid #1a1a1a; font-size: 13px; }
-.feed-district { color: #888; font-size: 11px; margin-bottom: 4px; }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.feed-entry { padding: 10px 0; border-bottom: 1px solid #1a1a1a; font-size: 13px; animation: slideIn 0.3s ease; }
+.feed-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.feed-district { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #1e3a8a; color: #93c5fd; letter-spacing: 0.5px; text-transform: uppercase; }
+.feed-district.scarborough    { background: #1c2e1e; color: #86efac; }
+.feed-district.north_york     { background: #1e2e3a; color: #93c5fd; }
+.feed-district.etobicoke      { background: #2a1e3a; color: #c4b5fd; }
+.feed-district.downtown       { background: #3a1e1e; color: #fca5a5; }
+.feed-district.yorkville      { background: #3a301e; color: #fde68a; }
+.feed-district.kensington     { background: #1e3a30; color: #6ee7b7; }
+.feed-district.little_portugal{ background: #3a2e1e; color: #fdba74; }
+.feed-district.little_italy   { background: #3a1e2e; color: #f9a8d4; }
+.feed-district.rosedale       { background: #1e2e3a; color: #7dd3fc; }
+.feed-district.east_york      { background: #1e3a1e; color: #a7f3d0; }
+.feed-district.west_end       { background: #2e3a1e; color: #d9f99d; }
+.feed-district.midtown        { background: #2e1e3a; color: #e9d5ff; }
+.feed-ts { font-size: 10px; color: #444; margin-left: auto; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff4444; display: inline-block; margin-right: 8px; }
 .status-dot.connected { background: #44ff88; }

@@ -38,7 +38,16 @@ export default function App() {
           </h2>
           {feedEntries.map((entry, i) => (
             <div key={i} className="feed-entry">
-              <div className="feed-district">{entry.district}</div>
+              <div className="feed-header">
+                <span className={`feed-district ${entry.district}`}>
+                  {entry.district.replace(/_/g, ' ')}
+                </span>
+                {entry.ts && (
+                  <span className="feed-ts">
+                    {new Date(entry.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                )}
+              </div>
               <div>{entry.text}</div>
             </div>
           ))}
