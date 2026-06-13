@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import random
 import time
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -12,6 +13,23 @@ from backend.services.scenario import ScenarioConfig
 from backend.services.rules import apply_event, compute_influence, decay_state
 from backend.services.narrator import generate_feed_text, pick_key_districts
 from backend.services.director import generate_timeline
+from backend.services.characters import pick_character
+
+_ORGANIC_EVENTS = [
+    ("street_party",          {"excitement": 8,  "pride": 5,  "social": 10}),
+    ("pub_crowd",             {"excitement": 6,  "social": 12, "tension": 3}),
+    ("fan_gathering",         {"excitement": 10, "social": 8}),
+    ("city_buzz",             {"excitement": 5,  "social": 6}),
+    ("neighbourhood_chatter", {"social": 8,      "tension": -3}),
+]
+
+_ORGANIC_FEED = {
+    "street_party":          ["Whole block is out tonight.", "Street's alive — can't even walk fast.", "People just pouring out."],
+    "pub_crowd":             ["Can't get a seat in here.", "Every screen in the pub is on.", "This city does not go quiet."],
+    "fan_gathering":         ["Word is spreading fast.", "You can feel something building.", "Nobody's going home yet."],
+    "city_buzz":             ["Toronto's awake tonight.", "Energy out there is real.", "Something in the air."],
+    "neighbourhood_chatter": ["Group chat is on fire.", "Everyone's got an opinion.", "Checking in on the block."],
+}
 
 logger = logging.getLogger(__name__)
 
@@ -24,18 +42,24 @@ class SimulationEngine:
         self.event_queue: asyncio.Queue[MatchEvent] = asyncio.Queue()
         self._running = False
         self._task: asyncio.Task | None = None
+        self._tick_task: asyncio.Task | None = None
         self._autopilot_task: asyncio.Task | None = None
+        self._autopilot_timeline: list[MatchEvent] = []
+        self._autopilot_active = False
+        self.simulation_clock = 0
+        self._lock = asyncio.Lock()
 
     async def start(self) -> None:
-        """Load district states from DB and start the background processing loop."""
+        """Load district states from DB and start the background processing loops."""
         self._running = True
         self._task = asyncio.create_task(self._processing_loop())
+        self._tick_task = asyncio.create_task(self._tick_loop())
         logger.info(
             "Simulation engine started for scenario '%s'", self.scenario.scenario_id
         )
 
     async def stop(self) -> None:
-        """Stop the processing loop gracefully."""
+        """Stop the loops gracefully."""
         self._running = False
         await self.stop_autopilot()
         if self._task:
@@ -44,12 +68,21 @@ class SimulationEngine:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        if self._tick_task:
+            self._tick_task.cancel()
+            try:
+                await self._tick_task
+            except asyncio.CancelledError:
+                pass
         logger.info("Simulation engine stopped.")
 
     async def start_autopilot(self, expressive: bool = False) -> None:
-        """Generate a match timeline and dispatch events with realistic timing."""
+        """Generate a match timeline and let the tick loop drive the match clock."""
         await self.stop_autopilot()
-        self._autopilot_task = asyncio.create_task(self._autopilot_loop(expressive))
+        self.simulation_clock = 0
+        self._autopilot_timeline = []
+        self._autopilot_active = True
+        self._autopilot_task = asyncio.create_task(self._autopilot_run(expressive))
 
     async def stop_autopilot(self) -> None:
         if self._autopilot_task and not self._autopilot_task.done():
@@ -59,20 +92,39 @@ class SimulationEngine:
             except asyncio.CancelledError:
                 pass
         self._autopilot_task = None
+        self._autopilot_active = False
 
-    async def _autopilot_loop(self, expressive: bool) -> None:
-        context = self.scenario.director_context
-        await self.ws_manager.broadcast({"type": "autopilot", "status": "generating"})
-        timeline = await generate_timeline(context, expressive=expressive)
-        await self.ws_manager.broadcast({"type": "autopilot", "status": "running", "events": len(timeline)})
-        logger.info("Autopilot starting: %d events, expressive=%s", len(timeline), expressive)
-        prev_minute = 0
-        for event in timeline:
-            gap = max(4, min(12, event.minute - prev_minute))
-            await asyncio.sleep(gap)
-            await self.inject_event(event)
-            prev_minute = event.minute
-        await self.ws_manager.broadcast({"type": "autopilot", "status": "finished"})
+    async def _autopilot_run(self, expressive: bool) -> None:
+        try:
+            context = self.scenario.director_context
+            await self.ws_manager.broadcast({"type": "autopilot", "status": "generating"})
+            timeline = await generate_timeline(context, expressive=expressive)
+            self._autopilot_timeline = timeline
+            
+            # Reset clock to 0 and start the match!
+            self.simulation_clock = 0
+            await self.ws_manager.broadcast({
+                "type": "autopilot", 
+                "status": "running", 
+                "events": len(timeline),
+                "timeline": [e.model_dump() for e in timeline]
+            })
+            logger.info("Autopilot initialized with %d events, expressive=%s", len(timeline), expressive)
+            
+            # Just keep this task alive until we reach 90 or it is cancelled
+            while self._running and self._autopilot_active and self.simulation_clock < 90:
+                await asyncio.sleep(0.5)
+            
+            if self.simulation_clock >= 90:
+                self._autopilot_active = False
+                await self.ws_manager.broadcast({"type": "autopilot", "status": "finished"})
+        except asyncio.CancelledError:
+            self._autopilot_active = False
+            logger.info("Autopilot task cancelled.")
+        except Exception:
+            logger.exception("Error in autopilot run")
+            self._autopilot_active = False
+            await self.ws_manager.broadcast({"type": "autopilot", "status": "idle"})
 
     async def inject_event(self, event: MatchEvent) -> None:
         """Enqueue an event for processing."""
@@ -84,13 +136,13 @@ class SimulationEngine:
         return [DistrictState.model_validate(doc) for doc in docs]
 
     async def _processing_loop(self) -> None:
-        """Main event loop: dequeue → apply rules → decay → broadcast."""
+        """Main event loop: dequeue → apply rules → broadcast."""
         while self._running:
             try:
-                event = await asyncio.wait_for(self.event_queue.get(), timeout=1.0)
-            except asyncio.TimeoutError:
-                await self._decay_tick()
-                await self._broadcast_pulse()
+                event = await self.event_queue.get()
+            except asyncio.CancelledError:
+                break
+            except Exception:
                 continue
             try:
                 logger.info("Processing event: %s for %s at minute %s", event.type, event.team, event.minute)
@@ -101,22 +153,91 @@ class SimulationEngine:
                 self.event_queue.task_done()
 
     async def _process_event(self, event: MatchEvent) -> None:
-        """Apply deterministic delta rules to all districts, then decay, then broadcast."""
-        states = await self.get_all_states()
-        influenced = compute_influence(event, states, self.scenario)
-        for district_state, distance_rank in influenced:
-            apply_event(district_state, event)
-            decay_state(district_state)
-            await self._save_state(district_state)
+        """Apply deterministic delta rules to all districts, then broadcast."""
+        async with self._lock:
+            states = await self.get_all_states()
+            influenced = compute_influence(event, states, self.scenario)
+            for district_state, distance_rank in influenced:
+                apply_event(district_state, event, distance_rank=distance_rank)
+                await self._save_state(district_state)
         await self._broadcast_update(influenced, event)
         asyncio.create_task(self._broadcast_feed(influenced, event))
 
-    async def _decay_tick(self) -> None:
-        """Apply decay to all district states."""
-        states = await self.get_all_states()
-        for state in states:
-            decay_state(state)
-            await self._save_state(state)
+    async def _tick_loop(self) -> None:
+        """Runs once per second: increment clock, decay, breathe, roll organic event, broadcast."""
+        while self._running:
+            try:
+                await asyncio.sleep(1.0)
+                if not self._running:
+                    break
+                
+                self.simulation_clock = min(self.simulation_clock + 1, 90)
+                
+                async with self._lock:
+                    states = await self.get_all_states()
+                    for state in states:
+                        decay_state(state)
+                    
+                    # Breathing (small random oscillations and mood drift)
+                    for state in states:
+                        state.emotion.excitement += random.uniform(-0.8, 0.8)
+                        state.emotion.tension += random.uniform(-0.6, 0.6)
+                        state.emotion.frustration += random.uniform(-0.4, 0.4)
+                        state.emotion.pride += random.uniform(-0.5, 0.5)
+                        state.activity.social += random.uniform(-1.0, 1.0)
+                        
+                        from backend.services.rules import _clamp_state
+                        _clamp_state(state)
+                        await self._save_state(state)
+                
+                # Check for autopilot timeline events
+                if self._autopilot_active:
+                    current_events = [e for e in self._autopilot_timeline if e.minute == self.simulation_clock]
+                    for event in current_events:
+                        logger.info("Autopilot injecting scheduled event: %s at minute %d", event.type, event.minute)
+                        await self.inject_event(event)
+                
+                # Roll for organic events (4% chance per tick)
+                if self.simulation_clock < 90 and random.random() < 0.04:
+                    await self._trigger_random_organic_event()
+                
+                # Broadcast tick (decay/breathing/clock)
+                await self._broadcast_tick(states)
+                
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Error in simulation tick loop")
+
+    async def _trigger_random_organic_event(self) -> None:
+        """Trigger a random minor organic event in a random district."""
+        event_types = [
+            "street_party",
+            "pub_crowd",
+            "fan_gathering",
+            "city_buzz",
+            "neighbourhood_chatter",
+            "fan_fight",
+            "street_party_forming"
+        ]
+        evt_type = random.choice(event_types)
+        districts = self.scenario.districts
+        if not districts:
+            return
+        source_district = random.choice(districts)
+        
+        team = random.choice(["canada", "opponent"])
+        severity = round(random.uniform(0.3, 0.7), 2)
+        
+        event = MatchEvent(
+            type=evt_type,
+            team=team,
+            minute=self.simulation_clock,
+            severity=severity,
+            source_district=source_district
+        )
+        logger.info("Triggering organic event: %s at %s at minute %d", evt_type, source_district, self.simulation_clock)
+        await self.inject_event(event)
 
     async def _save_state(self, state: DistrictState) -> None:
         """Persist a district state to MongoDB."""
@@ -141,6 +262,17 @@ class SimulationEngine:
                 {**s.model_dump(), "distance_rank": rank}
                 for s, rank in influenced
             ],
+        }
+        await self.ws_manager.broadcast(payload)
+
+    async def _broadcast_tick(self, states: list[DistrictState]) -> None:
+        """Broadcast simulation clock tick and updated district states to clients."""
+        if not self.ws_manager:
+            return
+        payload = {
+            "type": "tick",
+            "minute": self.simulation_clock,
+            "districts": [s.model_dump() for s in states],
         }
         await self.ws_manager.broadcast(payload)
 
@@ -171,9 +303,3 @@ class SimulationEngine:
                 "text": text,
                 "ts": ts,
             })
-
-    async def _broadcast_pulse(self) -> None:
-        """Broadcast heartbeat to WebSocket clients."""
-        if not self.ws_manager:
-            return
-        await self.ws_manager.broadcast({"type": "pulse", "timestamp": int(time.time())})

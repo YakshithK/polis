@@ -37,7 +37,7 @@ def compute_influence(
     Each district is tagged with a distance_rank (0 = closest/origin district,
     increasing outward).  All districts are included — no cutoff.
     """
-    source_district = EVENT_SOURCE.get(event.type, "downtown")
+    source_district = getattr(event, "source_district", None) or EVENT_SOURCE.get(event.type, "downtown")
     source_coords = scenario.district_centroids.get(source_district)
 
     if source_coords is None:
@@ -56,7 +56,7 @@ def compute_influence(
     return [(s, rank) for rank, s in enumerate(sorted_states)]
 
 
-def apply_event(state: DistrictState, event: MatchEvent) -> None:
+def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0) -> None:
     """Apply deterministic delta rules to a district state in-place.
 
     Deltas are weighted by district alignment fractions (canada_support /
@@ -67,7 +67,31 @@ def apply_event(state: DistrictState, event: MatchEvent) -> None:
     ca = state.alignment.canada_support / 100.0
     op = state.alignment.opponent_support / 100.0
 
-    if event.type == "goal" and event.team == "canada":
+    ORGANIC_DELTAS = {
+        "street_party":          {"excitement": 8.0,  "pride": 5.0,  "social": 10.0},
+        "pub_crowd":             {"excitement": 6.0,  "social": 12.0, "tension": 3.0},
+        "fan_gathering":         {"excitement": 10.0, "social": 8.0},
+        "city_buzz":             {"excitement": 5.0,  "social": 6.0},
+        "neighbourhood_chatter": {"social": 8.0,      "tension": -3.0},
+        "fan_fight":             {"tension": 12.0,    "social": 5.0,   "excitement": -2.0},
+        "street_party_forming":  {"excitement": 15.0, "social": 10.0, "pride": 8.0},
+    }
+
+    if event.type in ORGANIC_DELTAS:
+        deltas = ORGANIC_DELTAS[event.type]
+        factor = max(0.0, 1.0 - 0.15 * distance_rank) * s
+        if "excitement" in deltas:
+            state.emotion.excitement += deltas["excitement"] * factor
+        if "tension" in deltas:
+            state.emotion.tension += deltas["tension"] * factor
+        if "frustration" in deltas:
+            state.emotion.frustration += deltas["frustration"] * factor
+        if "pride" in deltas:
+            state.emotion.pride += deltas["pride"] * factor
+        if "social" in deltas:
+            state.activity.social += deltas["social"] * factor
+
+    elif event.type == "goal" and event.team == "canada":
         state.emotion.excitement  += 30 * ca * s
         state.emotion.pride       += 20 * ca * s
         state.activity.social     += 15 * s

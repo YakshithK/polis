@@ -27,6 +27,21 @@ _EVENT_LABELS = {
     ("penalty_miss", "opponent"): "The opponent missed a penalty",
     ("elimination", "canada"): "Canada has been eliminated from the World Cup",
     ("championship_win", "canada"): "Canada won the World Cup championship",
+    # Organic events:
+    ("street_party", "canada"): "A street party forms to celebrate",
+    ("street_party", "opponent"): "A street party forms to celebrate",
+    ("pub_crowd", "canada"): "Fans crowd into local pubs",
+    ("pub_crowd", "opponent"): "Fans crowd into local pubs",
+    ("fan_gathering", "canada"): "Fans gather in the streets",
+    ("fan_gathering", "opponent"): "Fans gather in the streets",
+    ("city_buzz", "canada"): "A buzz spreads through the neighbourhood",
+    ("city_buzz", "opponent"): "A buzz spreads through the neighbourhood",
+    ("neighbourhood_chatter", "canada"): "Neighbours chat about the game",
+    ("neighbourhood_chatter", "opponent"): "Neighbours chat about the game",
+    ("fan_fight", "canada"): "A minor altercation breaks out between rival fans",
+    ("fan_fight", "opponent"): "A minor altercation breaks out between rival fans",
+    ("street_party_forming", "canada"): "A massive street party starts forming",
+    ("street_party_forming", "opponent"): "A massive street party starts forming",
 }
 
 _FALLBACKS = {
@@ -60,7 +75,41 @@ _FALLBACKS = {
         "Penalty missed... so close. Heads up, we're still in this",
         "Heart dropped. Come on Canada, recover from this 😬",
     ],
+    # Organic event fallbacks:
+    ("street_party", "canada"): [
+        "Street party starting on our block! Everyone is out! 🥳",
+        "Music playing, people dancing, this neighbourhood is so alive right now!",
+    ],
+    ("street_party", "opponent"): [
+        "Street party starting on our block! Everyone is out! 🥳",
+        "Music playing, people dancing, this neighbourhood is so alive right now!",
+    ],
+    ("pub_crowd", "canada"): [
+        "Pub is absolutely packed. Can barely hear myself think!",
+        "Every seat in the local pub is taken. What an atmosphere!",
+    ],
+    ("pub_crowd", "opponent"): [
+        "Pub is absolutely packed. Can barely hear myself think!",
+        "Every seat in the local pub is taken. What an atmosphere!",
+    ],
+    ("fan_fight", "canada"): [
+        "Some tension outside the pub, looks like a minor fan dispute. Hope it cools down 😬",
+        "A bit of yelling between fans down the street. Police are keeping an eye on it.",
+    ],
+    ("fan_fight", "opponent"): [
+        "Some tension outside the pub, looks like a minor fan dispute. Hope it cools down 😬",
+        "A bit of yelling between fans down the street. Police are keeping an eye on it.",
+    ],
+    ("street_party_forming", "canada"): [
+        "Major street party forming right now! It's getting loud! 🎉",
+        "Block is blocked off, everyone's out celebrating, what a vibe!",
+    ],
+    ("street_party_forming", "opponent"): [
+        "Major street party forming right now! It's getting loud! 🎉",
+        "Block is blocked off, everyone's out celebrating, what a vibe!",
+    ],
 }
+
 
 async def generate_feed_text(event: MatchEvent, state: DistrictState) -> tuple[str, str]:
     """Return (post_text, character_name)."""

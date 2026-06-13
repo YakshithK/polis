@@ -25,3 +25,8 @@ class MatchEvent(BaseModel):
     severity: float = Field(
         default=1.0, ge=0.0, le=1.0, description="Impact magnitude 0–1"
     )
+    source_district: str | None = Field(
+        default=None,
+        description="Optional district ID where the event originated (used for organic/local events)",
+    )
+
