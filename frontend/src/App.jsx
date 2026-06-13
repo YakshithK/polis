@@ -8,6 +8,7 @@ import ControlsBar from './ControlsBar';
 import DistrictCard from './DistrictCard';
 import SplashScreen from './SplashScreen';
 import { useSimulation } from './useSimulation';
+import { useAmbience } from './useAmbience';
 
 export default function App() {
   const {
@@ -26,6 +27,8 @@ export default function App() {
   const clockRef = useRef(null);
 
   const autopilotActive = autopilotStatus === 'generating' || autopilotStatus === 'running';
+
+  const { start: startAmbience, setAmbience, triggerGroan } = useAmbience();
 
   // Track score from goal events
   useEffect(() => {
@@ -48,6 +51,25 @@ export default function App() {
     const t = setTimeout(() => setPanelsVisible(true), 200);
     return () => clearTimeout(t);
   }, [flyoverComplete]);
+
+  // Start ambient audio when user clicks Start (browser requires gesture)
+  useEffect(() => {
+    if (simulationStarted) startAmbience();
+  }, [simulationStarted]);
+
+  // Update ambience crossfade on every district state change
+  useEffect(() => {
+    if (!districts.length) return;
+    const avg = districts.reduce((sum, d) => sum + (d.emotion?.excitement ?? 0), 0) / districts.length;
+    setAmbience(avg);
+  }, [districts]);
+
+  // One-shot groan on elimination
+  useEffect(() => {
+    if (lastEvent?.type === 'elimination' && lastEvent?.team === 'canada') {
+      triggerGroan();
+    }
+  }, [lastEvent]);
 
   const stepMs = lastEvent
     ? lastEvent.severity >= 0.8 ? 80 : lastEvent.severity <= 0.4 ? 180 : 120
