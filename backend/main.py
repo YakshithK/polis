@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from database import lifespan
+from backend.database import lifespan
+from backend.api.sessions import router as sessions_router
 
 
 app = FastAPI(
@@ -17,5 +18,6 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
-# Routes will be registered here in subsequent tasks.
+# Routes
 # ---------------------------------------------------------------------------
+app.include_router(sessions_router)
