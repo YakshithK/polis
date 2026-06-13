@@ -9,6 +9,7 @@ export function useSimulation() {
   const [connected, setConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState(null);
   const [autopilotStatus, setAutopilotStatus] = useState('idle'); // idle | generating | running | finished
+  const [eventLog, setEventLog] = useState([]); // [{type, team, minute, severity, ts}]
   const wsRef = useRef(null);
 
   const connect = useCallback(async () => {
@@ -33,7 +34,10 @@ export function useSimulation() {
           msg.districts.forEach(d => { next[d.district_id] = d; });
           return next;
         });
-        if (msg.type === 'update') setLastEvent(msg.event);
+        if (msg.type === 'update') {
+          setLastEvent(msg.event);
+          setEventLog(prev => [...prev, { ...msg.event, ts: Date.now() }].slice(-50));
+        }
       }
       if (msg.type === 'feed') {
         setFeedEntries(prev => [msg, ...prev].slice(0, 50));
@@ -70,5 +74,5 @@ export function useSimulation() {
     return () => wsRef.current?.close();
   }, []);
 
-  return { sessionId, districts, feedEntries, connected, injectEvent, lastEvent, autopilotStatus, triggerAutopilot };
+  return { sessionId, districts, feedEntries, connected, injectEvent, lastEvent, autopilotStatus, triggerAutopilot, eventLog };
 }
