@@ -1,4 +1,4 @@
-"""MongoDB connection management for Polis."""
+"""MongoDB connection management for Algopolis."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-DATABASE_NAME = "polis"
+DATABASE_NAME = "algopolis"
 
 
 @asynccontextmanager

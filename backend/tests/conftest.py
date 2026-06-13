@@ -1,4 +1,4 @@
-"""Pytest fixtures for the Polis test suite."""
+"""Pytest fixtures for the Algopolis test suite."""
 
 from __future__ import annotations
 

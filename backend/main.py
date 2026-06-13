@@ -1,4 +1,4 @@
-"""Polis — FastAPI application entry point."""
+"""Algopolis — FastAPI application entry point."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Polis",
+    title="Algopolis",
     description="Real-time city emotion simulation for World Cup 2026 Toronto.",
     version="0.1.0",
     lifespan=lifespan,
