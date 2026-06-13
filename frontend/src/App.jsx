@@ -20,6 +20,11 @@ export default function App() {
   const [matchMinute, setMatchMinute] = useState(0);
   const clockRef = useRef(null);
 
+  // Cinematic & Startup States
+  const [simulationStarted, setSimulationStarted] = useState(false);
+  const [flyoverComplete, setFlyoverComplete] = useState(false);
+  const [feedVisible, setFeedVisible] = useState(true);
+
   const autopilotActive = autopilotStatus === 'generating' || autopilotStatus === 'running';
 
   // Track score from goal events
@@ -29,13 +34,13 @@ export default function App() {
     }
   }, [lastEvent]);
 
-  // Match clock: starts on connect, 1 real second = 1 match minute
+  // Match clock: starts when connected, simulation started, and cinematic flyover complete
   useEffect(() => {
-    if (!connected) return;
+    if (!connected || !simulationStarted || !flyoverComplete) return;
     if (clockRef.current) return;
     clockRef.current = setInterval(() => setMatchMinute(m => Math.min(m + 1, 90)), 1000);
     return () => { clearInterval(clockRef.current); clockRef.current = null; };
-  }, [connected]);
+  }, [connected, simulationStarted, flyoverComplete]);
 
   const districtList = Object.values(districts);
   const cityMood = districtList.length
@@ -69,62 +74,115 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="main-layout">
-        <div className="map-container">
-          <MapView districts={districts} stepMs={stepMs} />
+      {/* Absolute Full Screen Map Background */}
+      <MapView
+        districts={districts}
+        stepMs={stepMs}
+        lastEvent={lastEvent}
+        simulationStarted={simulationStarted}
+        onFlyoverComplete={() => setFlyoverComplete(true)}
+      />
+
+      {/* Opening Splash Overlay */}
+      {!simulationStarted && (
+        <div className="splash-overlay">
+          <div className="splash-content">
+            <h1 className="splash-title">P O L I S</h1>
+            <p className="splash-subtitle">48 nations. 3 million people. One city.</p>
+            <div className="splash-card">
+              <h2>World Cup 2026 — Toronto</h2>
+              <p className="splash-meta">June 12 · Canada 1–1 Bosnia-Herzegovina</p>
+            </div>
+            <button className="start-btn" onClick={() => setSimulationStarted(true)}>
+              Start Simulation →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Scoreboard (Top Center) */}
+      {simulationStarted && (
+        <div className="scoreboard-container">
           <Scoreboard score={score} matchMinute={matchMinute} cityMood={cityMood} />
         </div>
-        <div className="sidebar">
-          <h2>
-            <span className={`status-dot ${connected ? 'connected' : ''}`} />
-            Live Feed
-          </h2>
-          {feedEntries.map((entry, i) => (
-            <div key={i} className="feed-entry">
-              <div className="feed-header">
-                <span className={`feed-district ${entry.district}`}>
-                  {entry.district.replace(/_/g, ' ')}
-                </span>
-                {entry.ts && (
-                  <span className="feed-ts">
-                    {new Date(entry.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+      )}
+
+      {/* Floating Dismissable Live Feed Panel (Right Side) */}
+      {simulationStarted && feedVisible && (
+        <div className="sidebar glass">
+          <div className="sidebar-header">
+            <h2>
+              <span className={`status-dot ${connected ? 'connected' : ''}`} />
+              Live Feed
+            </h2>
+            <button className="close-feed-btn" onClick={() => setFeedVisible(false)} title="Close Feed">
+              ×
+            </button>
+          </div>
+          <div className="feed-list">
+            {feedEntries.map((entry, i) => (
+              <div key={i} className="feed-entry">
+                <div className="feed-header">
+                  <span className={`feed-district ${entry.district}`}>
+                    {entry.district.replace(/_/g, ' ')}
                   </span>
-                )}
+                  {entry.ts && (
+                    <span className="feed-ts">
+                      {new Date(entry.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+                <div className="feed-body">{entry.text}</div>
               </div>
-              <div>{entry.text}</div>
-            </div>
-          ))}
+            ))}
+            {feedEntries.length === 0 && (
+              <div className="feed-empty">Waiting for city activity...</div>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="bottom-bar">
-        {EVENTS.map(ev => (
-          <button
-            key={ev.label}
-            className={`event-btn ${activeBtn === ev.label ? 'active' : ''}`}
-            onClick={() => handleEvent(ev)}
-          >
-            {ev.label}
-          </button>
-        ))}
-        <div className="autopilot-controls">
-          <select
-            className="strictness-select"
-            value={strictness}
-            onChange={e => setStrictness(e.target.value)}
-            disabled={autopilotActive}
-          >
-            <option value="conservative">Conservative</option>
-            <option value="expressive">Expressive</option>
-          </select>
-          <button
-            className={`event-btn autopilot-btn ${autopilotActive ? 'active' : ''}`}
-            onClick={handleAutopilot}
-            disabled={autopilotStatus === 'generating'}
-          >
-            {autopilotLabel}
-          </button>
+      )}
+
+      {/* Reopen Feed Button (Floating top right) */}
+      {simulationStarted && !feedVisible && (
+        <button className="toggle-feed-btn glass" onClick={() => setFeedVisible(true)}>
+          💬 Live Feed
+        </button>
+      )}
+
+      {/* Floating Bottom Bar Event Controls (Bottom Center) */}
+      {simulationStarted && (
+        <div className="bottom-bar glass">
+          <div className="events-grid">
+            {EVENTS.map(ev => (
+              <button
+                key={ev.label}
+                className={`event-btn ${activeBtn === ev.label ? 'active' : ''}`}
+                onClick={() => handleEvent(ev)}
+              >
+                {ev.label}
+              </button>
+            ))}
+          </div>
+          <div className="autopilot-controls">
+            <select
+              className="strictness-select"
+              value={strictness}
+              onChange={e => setStrictness(e.target.value)}
+              disabled={autopilotActive}
+            >
+              <option value="conservative">Conservative</option>
+              <option value="expressive">Expressive</option>
+            </select>
+            <button
+              className={`event-btn autopilot-btn ${autopilotActive ? 'active' : ''}`}
+              onClick={handleAutopilot}
+              disabled={autopilotStatus === 'generating'}
+            >
+              {autopilotLabel}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
