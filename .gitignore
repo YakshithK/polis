@@ -1,1 +1,8 @@
 .claude
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+backend/venv/
+node_modules/
+.DS_Store

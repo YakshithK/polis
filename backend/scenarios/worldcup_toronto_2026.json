@@ -1,0 +1,38 @@
+{
+  "scenario_id": "worldcup_toronto_2026",
+  "name": "World Cup 2026 — Toronto",
+  "city": "toronto",
+  "districts": ["scarborough", "north_york", "etobicoke", "downtown", "yorkville", "kensington", "little_portugal", "little_italy", "rosedale", "east_york", "west_end", "midtown"],
+  "event_types": ["goal", "red_card", "var_review", "penalty_miss", "elimination", "championship_win"],
+  "alignment_field": "canada_support",
+  "teams": ["canada", "opponent"],
+  "director_context": "FIFA World Cup 2026 Group Stage. Canada vs Bosnia-Herzegovina. Canada drew 1-1 in their opener today.",
+  "district_alignments": {
+    "scarborough":     {"canada_support": 82, "opponent_support": 8,  "neutral": 10},
+    "north_york":      {"canada_support": 75, "opponent_support": 12, "neutral": 13},
+    "etobicoke":       {"canada_support": 70, "opponent_support": 15, "neutral": 15},
+    "downtown":        {"canada_support": 60, "opponent_support": 20, "neutral": 20},
+    "yorkville":       {"canada_support": 45, "opponent_support": 10, "neutral": 45},
+    "kensington":      {"canada_support": 55, "opponent_support": 25, "neutral": 20},
+    "little_portugal": {"canada_support": 50, "opponent_support": 35, "neutral": 15},
+    "little_italy":    {"canada_support": 52, "opponent_support": 33, "neutral": 15},
+    "rosedale":        {"canada_support": 40, "opponent_support": 10, "neutral": 50},
+    "east_york":       {"canada_support": 72, "opponent_support": 12, "neutral": 16},
+    "west_end":        {"canada_support": 63, "opponent_support": 18, "neutral": 19},
+    "midtown":         {"canada_support": 58, "opponent_support": 15, "neutral": 27}
+  },
+  "district_centroids": {
+    "scarborough":     [43.7764, -79.2318],
+    "north_york":      [43.7615, -79.4111],
+    "etobicoke":       [43.6205, -79.5132],
+    "downtown":        [43.6532, -79.3832],
+    "yorkville":       [43.6709, -79.3957],
+    "kensington":      [43.6547, -79.4005],
+    "little_portugal": [43.6490, -79.4390],
+    "little_italy":    [43.6610, -79.4197],
+    "rosedale":        [43.6782, -79.3777],
+    "east_york":       [43.6920, -79.3194],
+    "west_end":        [43.6426, -79.4559],
+    "midtown":         [43.6977, -79.3855]
+  }
+}
