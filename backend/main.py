@@ -2,22 +2,9 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
 from fastapi import FastAPI
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan handler.
-
-    Startup and shutdown logic (e.g. MongoDB connection management) will be
-    wired here in Task 1.2: Database Lifespan Management.
-    """
-    # --- startup ---
-    yield
-    # --- shutdown ---
+from database import lifespan
 
 
 app = FastAPI(
