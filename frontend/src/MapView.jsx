@@ -5,10 +5,11 @@ import { DISTRICTS_GEOJSON } from './districts';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-export default function MapView({ districts }) {
+export default function MapView({ districts, stepMs = 120 }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const geoDataRef = useRef(JSON.parse(JSON.stringify(DISTRICTS_GEOJSON)));
+  const timeoutsRef = useRef([]);
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -71,19 +72,23 @@ export default function MapView({ districts }) {
     const entries = Object.entries(districts);
     if (entries.length === 0) return;
 
+    timeoutsRef.current.forEach(id => clearTimeout(id));
+    timeoutsRef.current = [];
+
     entries.forEach(([districtId, state]) => {
       const excitement = state.emotion?.excitement ?? 50;
       const rank = state.distance_rank ?? 0;
-      setTimeout(() => {
+      const id = setTimeout(() => {
         const feature = geoDataRef.current.features.find(
           f => f.properties.district_id === districtId
         );
         if (feature) feature.properties.excitement = excitement;
         const src = mapRef.current?.getSource('toronto-districts');
         if (src) src.setData(geoDataRef.current);
-      }, rank * 120);
+      }, rank * stepMs);
+      timeoutsRef.current.push(id);
     });
-  }, [districts]);
+  }, [districts, stepMs]);
 
   return <div id="map" ref={mapContainer} />;
 }

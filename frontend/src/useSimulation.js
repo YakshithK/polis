@@ -7,6 +7,7 @@ export function useSimulation() {
   const [districts, setDistricts] = useState({});
   const [feedEntries, setFeedEntries] = useState([]);
   const [connected, setConnected] = useState(false);
+  const [lastEvent, setLastEvent] = useState(null);
   const wsRef = useRef(null);
 
   const connect = useCallback(async () => {
@@ -31,6 +32,7 @@ export function useSimulation() {
           msg.districts.forEach(d => { next[d.district_id] = d; });
           return next;
         });
+        if (msg.type === 'update') setLastEvent(msg.event);
       }
       if (msg.type === 'feed') {
         setFeedEntries(prev => [msg, ...prev].slice(0, 50));
@@ -54,5 +56,5 @@ export function useSimulation() {
     return () => wsRef.current?.close();
   }, []);
 
-  return { sessionId, districts, feedEntries, connected, injectEvent };
+  return { sessionId, districts, feedEntries, connected, injectEvent, lastEvent };
 }

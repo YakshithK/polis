@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import MapView from './MapView';
 import { useSimulation } from './useSimulation';
 
@@ -11,13 +12,24 @@ const EVENTS = [
 ];
 
 export default function App() {
-  const { districts, feedEntries, connected, injectEvent } = useSimulation();
+  const { districts, feedEntries, connected, injectEvent, lastEvent } = useSimulation();
+  const [activeBtn, setActiveBtn] = useState(null);
+
+  const stepMs = lastEvent
+    ? lastEvent.severity >= 0.8 ? 80 : lastEvent.severity <= 0.4 ? 180 : 120
+    : 120;
+
+  const handleEvent = (ev) => {
+    injectEvent(ev.type, ev.team);
+    setActiveBtn(ev.label);
+    setTimeout(() => setActiveBtn(null), 300);
+  };
 
   return (
     <div className="app">
       <div className="main-layout">
         <div className="map-container">
-          <MapView districts={districts} />
+          <MapView districts={districts} stepMs={stepMs} />
         </div>
         <div className="sidebar">
           <h2>
@@ -36,8 +48,8 @@ export default function App() {
         {EVENTS.map(ev => (
           <button
             key={ev.label}
-            className="event-btn"
-            onClick={() => injectEvent(ev.type, ev.team)}
+            className={`event-btn ${activeBtn === ev.label ? 'active' : ''}`}
+            onClick={() => handleEvent(ev)}
           >
             {ev.label}
           </button>
