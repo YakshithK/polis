@@ -41,6 +41,12 @@ export default function ControlsBar({ onEvent, autopilotStatus, onAutopilot, str
         ))}
       </div>
       <div className="controls-autopilot-row">
+        <select className="scenario-select" defaultValue="worldcup">
+          <option value="worldcup">⚽ World Cup 2026</option>
+          <option value="election" disabled>🗳 Election Night 2026 (disabled)</option>
+          <option value="filmfest" disabled>🎬 Film Festival (disabled)</option>
+          <option value="pandemic" disabled>🦠 Pandemic Response (disabled)</option>
+        </select>
         <button
           className={`autopilot-btn${autopilotActive ? ' running' : ''}`}
           onClick={onAutopilot}

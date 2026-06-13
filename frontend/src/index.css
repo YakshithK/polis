@@ -644,6 +644,37 @@ body {
   color: var(--text-primary);
 }
 
+.scenario-select {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px dashed rgba(80, 120, 255, 0.4);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.scenario-select:hover {
+  background: var(--bg-glass-hover);
+  color: var(--text-primary);
+  border-color: rgba(80, 120, 255, 0.8);
+}
+
+.scenario-select option {
+  background: #080e20;
+  color: var(--text-primary);
+}
+
+.scenario-select option:disabled {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+
 /* ── District Card ────────────────────────────────── */
 @keyframes cardEnter {
   from { opacity: 0; transform: scale(0.90); }
@@ -931,3 +962,17 @@ body {
 .panel-reveal {
   animation: panelFade 0.4s ease-out both;
 }
+
+/* ── 48 Nations Stat Label ────────────────────────── */
+.city-stats-nations {
+  position: absolute;
+  left: 16px;
+  bottom: 115px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--text-muted);
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0.8;
+}
+

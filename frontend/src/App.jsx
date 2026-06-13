@@ -13,7 +13,7 @@ import { useAmbience } from './useAmbience';
 export default function App() {
   const {
     districts, feedEntries, connected, injectEvent,
-    lastEvent, autopilotStatus, triggerAutopilot, eventLog,
+    lastEvent, autopilotStatus, triggerAutopilot, eventLog, matchMinute,
   } = useSimulation();
 
   const [simulationStarted, setSimulationStarted] = useState(false);
@@ -21,14 +21,19 @@ export default function App() {
   const [feedVisible,       setFeedVisible]       = useState(true);
   const [strictness,        setStrictness]        = useState('conservative');
   const [score,             setScore]             = useState({ canada: 0, opponent: 0 });
-  const [matchMinute,       setMatchMinute]       = useState(0);
   const [panelsVisible,     setPanelsVisible]     = useState(false);
   const [clickedDistrict,   setClickedDistrict]   = useState(null);
-  const clockRef = useRef(null);
 
   const autopilotActive = autopilotStatus === 'generating' || autopilotStatus === 'running';
 
   const { start: startAmbience, setAmbience, triggerGroan } = useAmbience();
+
+  // Reset score when starting autopilot
+  useEffect(() => {
+    if (autopilotStatus === 'generating') {
+      setScore({ canada: 0, opponent: 0 });
+    }
+  }, [autopilotStatus]);
 
   // Track score from goal events
   useEffect(() => {
@@ -37,13 +42,6 @@ export default function App() {
     }
   }, [lastEvent]);
 
-  // Match clock: starts after flyover complete
-  useEffect(() => {
-    if (!connected || !simulationStarted || !flyoverComplete) return;
-    if (clockRef.current) return;
-    clockRef.current = setInterval(() => setMatchMinute(m => Math.min(m + 1, 90)), 1000);
-    return () => { clearInterval(clockRef.current); clockRef.current = null; };
-  }, [connected, simulationStarted, flyoverComplete]);
 
   // Stagger panel fade-in after flyover
   useEffect(() => {
@@ -121,6 +119,10 @@ export default function App() {
 
           {/* Left: City Stats */}
           <CityStatsPanel districts={districts} />
+          <div className="city-stats-nations panel-reveal" style={{ animationDelay: '0.2s' }}>
+            48 nations &middot; 3M people &middot; 12 neighbourhoods
+          </div>
+
 
           {/* Right: Live Feed or pill */}
           {feedVisible ? (

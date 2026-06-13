@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE || 
+  (window.location.origin.includes('localhost') ? 'http://localhost:8000' : window.location.origin);
 
 export function useSimulation() {
   const [sessionId, setSessionId] = useState(null);
@@ -10,6 +11,7 @@ export function useSimulation() {
   const [lastEvent, setLastEvent] = useState(null);
   const [autopilotStatus, setAutopilotStatus] = useState('idle'); // idle | generating | running | finished
   const [eventLog, setEventLog] = useState([]); // [{type, team, minute, severity, ts}]
+  const [matchMinute, setMatchMinute] = useState(0);
   const wsRef = useRef(null);
 
   const connect = useCallback(async () => {
@@ -18,8 +20,10 @@ export function useSimulation() {
     const session = await res.json();
     setSessionId(session.session_id);
 
-    // Open WebSocket
-    const wsUrl = `ws://localhost:8000/ws/${session.session_id}`;
+    // Open WebSocket dynamically
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = API_BASE.replace(/^https?:\/\//, '');
+    const wsUrl = `${wsProto}//${wsHost}/ws/${session.session_id}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -39,11 +43,22 @@ export function useSimulation() {
           setEventLog(prev => [...prev, { ...msg.event, ts: Date.now() }].slice(-50));
         }
       }
+      if (msg.type === 'tick') {
+        setMatchMinute(msg.minute);
+        setDistricts(prev => {
+          const next = { ...prev };
+          msg.districts.forEach(d => { next[d.district_id] = d; });
+          return next;
+        });
+      }
       if (msg.type === 'feed') {
         setFeedEntries(prev => [msg, ...prev].slice(0, 50));
       }
       if (msg.type === 'autopilot') {
         setAutopilotStatus(msg.status);
+        if (msg.status === 'running') {
+          setMatchMinute(0);
+        }
       }
     };
 
@@ -55,9 +70,9 @@ export function useSimulation() {
     await fetch(`${API_BASE}/session/${sessionId}/event`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, team, minute: 45, severity: 0.8 }),
+      body: JSON.stringify({ type, team, minute: matchMinute, severity: 0.8 }),
     });
-  }, [sessionId]);
+  }, [sessionId, matchMinute]);
 
   const triggerAutopilot = useCallback(async (action, strictness = 'conservative') => {
     if (!sessionId) return;
@@ -74,5 +89,5 @@ export function useSimulation() {
     return () => wsRef.current?.close();
   }, []);
 
-  return { sessionId, districts, feedEntries, connected, injectEvent, lastEvent, autopilotStatus, triggerAutopilot, eventLog };
+  return { sessionId, districts, feedEntries, connected, injectEvent, lastEvent, autopilotStatus, triggerAutopilot, eventLog, matchMinute };
 }
