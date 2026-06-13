@@ -6,6 +6,7 @@ from openai import AsyncOpenAI
 
 from backend.models.district import DistrictState
 from backend.models.event import MatchEvent
+from backend.services.characters import pick_character
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ _FALLBACKS = {
     ],
 }
 
-async def generate_feed_text(event: MatchEvent, state: DistrictState) -> str:
+async def generate_feed_text(event: MatchEvent, state: DistrictState) -> tuple[str, str]:
+    """Return (post_text, character_name)."""
     event_label = _EVENT_LABELS.get(
         (event.type, event.team),
         f"{event.team} {event.type.replace('_', ' ')}"
@@ -69,17 +71,17 @@ async def generate_feed_text(event: MatchEvent, state: DistrictState) -> str:
     district_name = state.district_id.replace("_", " ").title()
     emotion = state.emotion
     dominant = state.dominant
+    char = pick_character(state.district_id)
 
     system = (
-        "You are a social media aggregator for a Toronto neighbourhood watching FIFA World Cup 2026. "
-        "Write exactly ONE tweet-length post (under 140 chars) reacting to the match event from this "
-        "neighbourhood's perspective. Be authentic, emotional, and local. No hashtag spam. "
-        "Output only the post text, nothing else."
+        f"You are {char['name']}, a resident of {district_name}, Toronto, watching FIFA World Cup 2026. "
+        f"Voice: {char['voice']}. "
+        "Write exactly ONE social media post reacting to the match event. Max 120 characters. "
+        "Stay completely in character. Output only the post text, nothing else. No hashtag spam."
     )
     user = (
-        f"Neighbourhood: {district_name}\n"
         f"Event: {event_label} (minute {event.minute})\n"
-        f"Current mood: {dominant} — "
+        f"Your neighbourhood mood: {dominant} — "
         f"excitement={emotion.excitement:.0f}, tension={emotion.tension:.0f}, "
         f"frustration={emotion.frustration:.0f}, pride={emotion.pride:.0f}"
     )
@@ -94,15 +96,15 @@ async def generate_feed_text(event: MatchEvent, state: DistrictState) -> str:
                     {"role": "user", "content": user},
                 ],
                 max_tokens=80,
-                temperature=0.85,
+                temperature=0.9,
             ),
             timeout=8.0,
         )
         text = response.choices[0].message.content or ""
-        return text.strip()
+        return text.strip(), char["name"]
     except Exception as exc:
         logger.warning("Narrator AI call failed for %s: %s", state.district_id, exc)
-        return _fallback(event)
+        return _fallback(event), char["name"]
 
 
 def _fallback(event: MatchEvent) -> str:

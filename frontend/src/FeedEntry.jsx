@@ -38,8 +38,8 @@ function formatAge(ts) {
 }
 
 export default function FeedEntry({ entry }) {
-  const { district, text, ts } = entry;
-  const character = CHARACTERS[district] ?? district;
+  const { district, text, ts, character: wsCharacter } = entry;
+  const character = wsCharacter ?? CHARACTERS[district] ?? district;
   const color     = DISTRICT_COLORS[district] ?? '#3d7bff';
   const label     = district.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 

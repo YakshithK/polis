@@ -156,13 +156,18 @@ class SimulationEngine:
             influenced, self.scenario.district_alignments
         )
         tasks = [generate_feed_text(event, state) for state in key_districts]
-        texts = await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         ts = int(time.time())
-        for state, result in zip(key_districts, texts):
-            text = result if isinstance(result, str) else f"The city is reacting to minute {event.minute}."
+        for state, result in zip(key_districts, results):
+            if isinstance(result, tuple):
+                text, character = result
+            else:
+                text = f"The city is reacting to minute {event.minute}."
+                character = None
             await self.ws_manager.broadcast({
                 "type": "feed",
                 "district": state.district_id,
+                "character": character,
                 "text": text,
                 "ts": ts,
             })
