@@ -1,4 +1,4 @@
-"""Scenario config loader and validator for the City Simulation Engine."""
+"""Scenario config loader and validator for Polis."""
 
 from __future__ import annotations
 
