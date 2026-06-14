@@ -29,7 +29,7 @@ export default function EventLogBar({ eventLog, onEventClick }) {
   }, [eventLog]);
 
   return (
-    <div className="event-log-bar glass panel-reveal" style={{ animationDelay: '0.3s' }}>
+    <div className="event-log-bar glass">
       <span className="event-log-label">Event Log</span>
       <div className="event-log-scroll" ref={scrollRef}>
         {eventLog.length === 0 ? (

@@ -158,17 +158,17 @@ export default function App() {
             </button>
           )}
 
-          {/* Bottom: Event log */}
-          <EventLogBar eventLog={eventLog} onEventClick={handleEventLogClick} />
-
-          {/* Bottom center: Controls */}
-          <ControlsBar
-            onEvent={injectEvent}
-            autopilotStatus={autopilotStatus}
-            onAutopilot={handleAutopilot}
-            strictness={strictness}
-            onStrictness={setStrictness}
-          />
+          {/* Bottom: Event log + Controls stacked */}
+          <div className="bottom-panel panel-reveal" style={{ animationDelay: '0.3s' }}>
+            <EventLogBar eventLog={eventLog} onEventClick={handleEventLogClick} />
+            <ControlsBar
+              onEvent={injectEvent}
+              autopilotStatus={autopilotStatus}
+              onAutopilot={handleAutopilot}
+              strictness={strictness}
+              onStrictness={setStrictness}
+            />
+          </div>
 
           {/* Floating district card */}
           {clickedDistrict && (

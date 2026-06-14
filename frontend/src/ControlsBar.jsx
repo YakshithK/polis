@@ -27,7 +27,7 @@ export default function ControlsBar({ onEvent, autopilotStatus, onAutopilot, str
   }[autopilotStatus] ?? '🤖 Autopilot';
 
   return (
-    <div className="controls-bar glass panel-reveal" style={{ animationDelay: '0.3s' }}>
+    <div className="controls-bar glass">
       <div className="controls-events-row">
         {EVENTS.map(ev => (
           <button
