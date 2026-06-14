@@ -70,7 +70,50 @@ const LAYERS_TO_HIDE = [
   'country-label', 'state-label',
 ];
 
-export default function MapView({ districts, stepMs = 120, lastEvent, simulationStarted, onFlyoverComplete, onDistrictClick }) {
+const BMO_FIELD = [-79.4186, 43.6332];
+const AGENT_JITTER = 0.0002;
+const EVENT_SOURCE = {
+  goal: 'downtown',
+  red_card: 'downtown',
+  var_review: 'downtown',
+  penalty_miss: 'downtown',
+  elimination: 'downtown',
+  championship_win: 'downtown',
+};
+
+const EVENT_EMOJIS = {
+  goal:             ['⚽', '🎉', '🇨🇦', '🔥'],
+  red_card:         ['🟥', '😱', '❗'],
+  var_review:       ['📺', '🤔'],
+  penalty_miss:     ['😬', '😩'],
+  elimination:      ['💀', '😢'],
+  championship_win: ['🏆', '🎊', '🇨🇦'],
+};
+
+function clampAgent(agent) {
+  const { lonMin, lonMax, latMin, latMax } = agent.bounds;
+  agent.x = Math.max(lonMin, Math.min(lonMax, agent.x));
+  agent.y = Math.max(latMin, Math.min(latMax, agent.y));
+}
+
+function featureCentroid(feature) {
+  const coords = feature.geometry.coordinates[0];
+  let sumLon = 0;
+  let sumLat = 0;
+  coords.forEach(([lon, lat]) => {
+    sumLon += lon;
+    sumLat += lat;
+  });
+  return [sumLon / coords.length, sumLat / coords.length];
+}
+
+function replayStepMs(severity) {
+  if (severity >= 0.8) return 80;
+  if (severity <= 0.4) return 180;
+  return 120;
+}
+
+export default function MapView({ districts, stepMs = 120, lastEvent, simulationStarted, onFlyoverComplete, onDistrictClick, replayEvent }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const geoDataRef = useRef(JSON.parse(JSON.stringify(DISTRICTS_GEOJSON)));
@@ -80,6 +123,93 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   const updatePendingRef = useRef(false);
   const hoveredRef = useRef(null);
   const [tooltip, setTooltip] = useState(null); // {x, y, name, emotion, intensity}
+  const [emojiBursts, setEmojiBursts] = useState([]); // [{id, x, y, emoji}]
+  const agentsRef = useRef([]);
+  const districtsRef = useRef(districts);
+  const agentAnimRef = useRef(null);
+  const lastEmojiEventRef = useRef(null);
+
+  districtsRef.current = districts;
+
+  function updateAgentDotsSource() {
+    const map = mapRef.current;
+    if (!map) return;
+    const src = map.getSource('agent-dots');
+    if (!src) return;
+    src.setData({
+      type: 'FeatureCollection',
+      features: agentsRef.current.map(a => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [a.x, a.y] },
+      })),
+    });
+  }
+
+  function spawnEmojiBurst(districtId, emojis) {
+    const map = mapRef.current;
+    if (!map || !emojis?.length) return;
+    const feature = geoDataRef.current.features.find(
+      f => f.properties.district_id === districtId,
+    );
+    if (!feature) return;
+    const [lon, lat] = featureCentroid(feature);
+    const point = map.project([lon, lat]);
+    const count = 3 + Math.floor(Math.random() * 3);
+    const particles = Array.from({ length: count }, (_, i) => ({
+      id: `${Date.now()}-${i}-${Math.random()}`,
+      x: point.x + (Math.random() - 0.5) * 40,
+      y: point.y + (Math.random() - 0.5) * 20,
+      emoji: emojis[Math.floor(Math.random() * emojis.length)],
+    }));
+    setEmojiBursts(prev => [...prev, ...particles]);
+    particles.forEach(p => {
+      setTimeout(() => {
+        setEmojiBursts(prev => prev.filter(x => x.id !== p.id));
+      }, 1500);
+    });
+  }
+
+  function triggerReplayWave(event) {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded() || !event) return;
+
+    const sourceId = event.source_district || EVENT_SOURCE[event.type] || 'downtown';
+    const sourceFeature = geoDataRef.current.features.find(
+      f => f.properties.district_id === sourceId,
+    );
+    if (!sourceFeature) return;
+
+    const [sLon, sLat] = featureCentroid(sourceFeature);
+    const ranked = geoDataRef.current.features
+      .map(f => {
+        const [lon, lat] = featureCentroid(f);
+        const dist = Math.hypot(lon - sLon, lat - sLat);
+        return { id: f.properties.district_id, dist, feature: f };
+      })
+      .sort((a, b) => a.dist - b.dist);
+
+    const step = replayStepMs(event.severity ?? 0.8);
+    const replayTimeouts = [];
+
+    ranked.forEach(({ feature }, index) => {
+      const rank = index;
+      const id_t = setTimeout(() => {
+        const savedColor = feature.properties.fill_color;
+        const savedOpacity = feature.properties.fill_opacity;
+        feature.properties.fill_color = '#ffffff';
+        feature.properties.fill_opacity = Math.min(0.95, savedOpacity + 0.25);
+        scheduleMapUpdate();
+        setTimeout(() => {
+          feature.properties.fill_color = savedColor;
+          feature.properties.fill_opacity = savedOpacity;
+          scheduleMapUpdate();
+        }, 400);
+      }, rank * step);
+      replayTimeouts.push(id_t);
+    });
+
+    return () => replayTimeouts.forEach(clearTimeout);
+  }
 
   // Sync emotion values into feature properties and compute color
   function syncFeature(feature, state) {
@@ -218,6 +348,72 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
           'text-halo-color': 'rgba(5, 8, 16, 0.85)',
           'text-halo-width': 2,
         },
+      });
+
+      // Seed agent dots inside district bounding boxes
+      const agents = [];
+      geoDataRef.current.features.forEach(feature => {
+        const districtId = feature.properties.district_id;
+        let lonMin = Infinity, lonMax = -Infinity, latMin = Infinity, latMax = -Infinity;
+        let sumLon = 0, sumLat = 0, count = 0;
+        
+        const coords = feature.geometry.coordinates[0];
+        coords.forEach(([lon, lat]) => {
+          if (lon < lonMin) lonMin = lon;
+          if (lon > lonMax) lonMax = lon;
+          if (lat < latMin) latMin = lat;
+          if (lat > latMax) latMax = lat;
+          sumLon += lon;
+          sumLat += lat;
+          count++;
+        });
+        
+        const centroidX = sumLon / count;
+        const centroidY = sumLat / count;
+        
+        for (let i = 0; i < 60; i++) {
+          const x = lonMin + Math.random() * (lonMax - lonMin);
+          const y = latMin + Math.random() * (latMax - latMin);
+          agents.push({
+            id: `${districtId}-${i}`,
+            districtId,
+            x,
+            y,
+            originX: x,
+            originY: y,
+            bounds: { lonMin, lonMax, latMin, latMax },
+            centroidX,
+            centroidY,
+            mode: 'normal',
+            modeTimer: 0
+          });
+        }
+      });
+      agentsRef.current = agents;
+
+      // Add agent dots source and circle layer
+      map.addSource('agent-dots', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: agents.map(a => ({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [a.x, a.y] }
+          }))
+        }
+      });
+
+      map.addLayer({
+        id: 'agent-dots-layer',
+        type: 'circle',
+        source: 'agent-dots',
+        paint: {
+          'circle-radius': 3.5,
+          'circle-color': '#ffffff',
+          'circle-opacity': 0.65,
+          'circle-stroke-width': 0.75,
+          'circle-stroke-color': '#050810',
+        }
       });
 
       // Hover interaction
@@ -377,9 +573,122 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     }
   }, [districts, lastEvent, stepMs]);
 
+  // Agent dot Brownian motion + event-triggered drift
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    let running = true;
+    const tick = (now) => {
+      if (!running) return;
+      const agents = agentsRef.current;
+      if (agents.length) {
+        agents.forEach(agent => {
+          if (agent.mode === 'freeze') {
+            if (now >= agent.modeTimer) agent.mode = 'normal';
+            return;
+          }
+          if (agent.mode === 'goal_drift') {
+            const t = 0.012;
+            agent.x += (BMO_FIELD[0] - agent.x) * t;
+            agent.y += (BMO_FIELD[1] - agent.y) * t;
+            if (now >= agent.modeTimer) {
+              agent.mode = 'return';
+              agent.modeTimer = now + 3000;
+            }
+          } else if (agent.mode === 'return') {
+            const t = 0.015;
+            agent.x += (agent.originX - agent.x) * t;
+            agent.y += (agent.originY - agent.y) * t;
+            if (now >= agent.modeTimer) agent.mode = 'normal';
+          } else if (agent.mode === 'scatter') {
+            const dx = agent.x - agent.centroidX;
+            const dy = agent.y - agent.centroidY;
+            const len = Math.hypot(dx, dy) || 0.0001;
+            agent.x += (dx / len) * 0.00035;
+            agent.y += (dy / len) * 0.00035;
+            if (now >= agent.modeTimer) agent.mode = 'normal';
+          } else {
+            agent.x += (Math.random() - 0.5) * 2 * AGENT_JITTER;
+            agent.y += (Math.random() - 0.5) * 2 * AGENT_JITTER;
+          }
+          clampAgent(agent);
+        });
+        updateAgentDotsSource();
+      }
+      agentAnimRef.current = requestAnimationFrame(tick);
+    };
+
+    agentAnimRef.current = requestAnimationFrame(tick);
+    return () => {
+      running = false;
+      if (agentAnimRef.current) cancelAnimationFrame(agentAnimRef.current);
+    };
+  }, []);
+
+  // Switch agent modes on match events
+  useEffect(() => {
+    if (!lastEvent) return;
+    const agents = agentsRef.current;
+    if (!agents.length) return;
+    const now = performance.now();
+    const districtStates = districtsRef.current;
+
+    if (lastEvent.type === 'var_review') {
+      agents.forEach(a => {
+        a.mode = 'freeze';
+        a.modeTimer = now + 3000;
+      });
+    } else if (lastEvent.type === 'elimination') {
+      agents.forEach(a => {
+        a.mode = 'scatter';
+        a.modeTimer = now + 3000;
+      });
+    } else if (lastEvent.type === 'goal' && lastEvent.team === 'canada') {
+      agents.forEach(a => {
+        const state = districtStates[a.districtId];
+        const exc = state?.emotion?.excitement ?? 0;
+        const ca = state?.alignment?.canada_support ?? 0;
+        if (exc > 60 || ca > 60) {
+          a.mode = 'goal_drift';
+          a.modeTimer = now + 3000;
+        }
+      });
+    }
+  }, [lastEvent]);
+
+  // Emoji burst on high-severity events
+  useEffect(() => {
+    if (!lastEvent || (lastEvent.severity ?? 0) < 0.7) return;
+    const key = `${lastEvent.type}-${lastEvent.team}-${lastEvent.minute}`;
+    if (lastEmojiEventRef.current === key) return;
+    lastEmojiEventRef.current = key;
+
+    const emojis = EVENT_EMOJIS[lastEvent.type] ?? ['✨', '🔥'];
+    const districtId = lastEvent.source_district || EVENT_SOURCE[lastEvent.type] || 'downtown';
+    spawnEmojiBurst(districtId, emojis);
+  }, [lastEvent]);
+
+  // Visual-only wave replay from event log clicks
+  useEffect(() => {
+    if (!replayEvent) return;
+    return triggerReplayWave(replayEvent);
+  }, [replayEvent]);
+
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div id="map" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
+      <div className="emoji-burst-container">
+        {emojiBursts.map(p => (
+          <span
+            key={p.id}
+            className="emoji-burst-particle"
+            style={{ left: p.x, top: p.y }}
+          >
+            {p.emoji}
+          </span>
+        ))}
+      </div>
       {tooltip && (
         <div
           className="district-tooltip"
@@ -391,3 +700,4 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     </div>
   );
 }
+
