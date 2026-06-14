@@ -56,6 +56,7 @@ class SimulationEngine:
         self._lock = asyncio.Lock()
         self._last_manual_event_time = 0.0
         self._last_event_type: str | None = None
+        self._active_effects: list[dict] = []
 
     async def start(self) -> None:
         """Load district states from DB and start the background processing loops."""
@@ -183,8 +184,109 @@ class SimulationEngine:
             for district_state, distance_rank in influenced:
                 apply_event(district_state, event, distance_rank=distance_rank, impact_scale=impact_scale)
                 await self._save_state(district_state)
+
+        duration = self._event_duration_ticks(event)
+        if duration > 0:
+            self._active_effects.append({
+                "type": event.type,
+                "source_district": event.source_district,
+                "severity": event.severity,
+                "remaining": duration,
+                "impact_scale": impact_scale,
+            })
+
         await self._broadcast_update(influenced, event, source=source)
         asyncio.create_task(self._broadcast_feed(influenced, event))
+
+    def _simulation_hour(self, minute: int) -> float:
+        """Map the 0-90 simulation minute onto the 24-hour day shown in the top banner."""
+        elapsed = (minute / 90.0) * (24 * 60)
+        total_minutes = 6 * 60 + elapsed
+        return (total_minutes / 60.0) % 24.0
+
+    def _event_duration_ticks(self, event: MatchEvent) -> int:
+        """Return how long an event should keep pushing the city, in tick units."""
+        hour = self._simulation_hour(event.minute)
+
+        if event.type == "heat_wave":
+            if 11.0 <= hour < 17.0:
+                return 18
+            if 9.0 <= hour < 11.0 or 17.0 <= hour < 20.0:
+                return 12
+            return 8
+
+        if event.type == "transit_strike":
+            return 14
+        if event.type == "festival":
+            return 10
+        if event.type == "power_outage":
+            return 12
+        if event.type == "major_layoffs":
+            return 16
+        if event.type == "cultural_event":
+            return 10
+        if event.type == "protest":
+            return 12
+        if event.type == "street_fair":
+            return 8
+
+        return 0
+
+    def _apply_active_effects(self, states: list[DistrictState]) -> None:
+        """Re-apply sustained event pressure each tick so major events linger."""
+        if not self._active_effects:
+            return
+
+        states_by_id = {state.district_id: state for state in states}
+        next_effects: list[dict] = []
+
+        for effect in self._active_effects:
+            remaining = int(effect.get("remaining", 0))
+            if remaining <= 0:
+                continue
+
+            event = MatchEvent(
+                type=effect["type"],
+                team=None,
+                minute=self.simulation_clock,
+                severity=float(effect.get("severity", 1.0)),
+                source_district=effect.get("source_district"),
+            )
+            influenced = compute_influence(event, states, self.scenario)
+            sustained_scale = 0.24 * float(effect.get("impact_scale", 1.0))
+
+            for district_state, distance_rank in influenced:
+                if effect["type"] == "heat_wave":
+                    # Hot weather lingers through the day and steadily pushes stress up.
+                    apply_event(
+                        district_state,
+                        event,
+                        distance_rank=distance_rank,
+                        impact_scale=sustained_scale,
+                    )
+                elif effect["type"] in {"transit_strike", "power_outage", "major_layoffs", "protest"}:
+                    apply_event(
+                        district_state,
+                        event,
+                        distance_rank=distance_rank,
+                        impact_scale=sustained_scale * 0.7,
+                    )
+                else:
+                    apply_event(
+                        district_state,
+                        event,
+                        distance_rank=distance_rank,
+                        impact_scale=sustained_scale * 0.5,
+                    )
+
+            remaining -= 1
+            if remaining > 0:
+                effect["remaining"] = remaining
+                next_effects.append(effect)
+
+        self._active_effects = next_effects
+        for state in states:
+            states_by_id[state.district_id] = state
 
     async def _tick_loop(self) -> None:
         """Runs once per second: increment clock, decay, breathe, roll organic event, broadcast."""
@@ -206,6 +308,9 @@ class SimulationEngine:
                         state.emotion.pride       += random.uniform(-0.5, 0.5)
                         state.activity.social     += random.uniform(-1.0, 1.0)
                         _clamp_state(state)
+
+                    self._apply_active_effects(states)
+
                     # Batch all 12 writes in one round-trip instead of 12 serial
                     # Atlas calls (was holding the lock ~600ms; now ~50ms).
                     await self._save_states_batch(states)
