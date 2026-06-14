@@ -145,9 +145,12 @@ def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0,
 
     elif event.type in MATCH_EVENT_DELTAS:
         deltas = MATCH_EVENT_DELTAS[event.type]
-        source_boost = 1.7 if distance_rank == 0 else 1.0
-        distance_factor = max(CITY_EVENT_MIN_FACTOR, 1.0 - CITY_EVENT_DISTANCE_STEP * distance_rank)
+        is_canada_goal = (event.type == "goal" and (event.team is None or event.team.lower() == "canada"))
+        source_boost = 1.7 if (distance_rank == 0 or is_canada_goal) else 1.0
+        distance_factor = 1.0 if is_canada_goal else max(CITY_EVENT_MIN_FACTOR, 1.0 - CITY_EVENT_DISTANCE_STEP * distance_rank)
         factor = s * CITY_EVENT_BOOST * source_boost * distance_factor * impact_scale
+        if is_canada_goal:
+            factor = max(factor, 4.0)
         for key, delta in deltas.items():
             emotion_deltas[key] = delta * factor
 
@@ -165,7 +168,7 @@ def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0,
 
     # Create ActiveEffect for emotion deltas
     if emotion_deltas:
-        duration = EFFECT_DURATIONS.get(event.type, 120)
+        duration = getattr(event, "duration", None) or EFFECT_DURATIONS.get(event.type, 120)
         effect = ActiveEffect(
             event_type=event.type,
             team=event.team,

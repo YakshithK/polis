@@ -173,11 +173,51 @@ function PulseTab({ districts, activityByDistrict }) {
           <div key={district} style={{ marginBottom: 10 }}>
             <div className="hottest-name">{district.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</div>
             <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-muted)' }}>{payload?.archetype}</div>
-            {(payload?.citizens ?? []).slice(0, 2).map((person) => (
-              <div key={person.citizen} style={{ fontSize: 'var(--text-xs)', marginTop: 4 }}>
-                {person.citizen}: {person.activity}
-              </div>
-            ))}
+            {(payload?.citizens ?? []).slice(0, 2).map((person) => {
+              const flag = (person.align ?? 0.5) >= 0.5 ? '🇨🇦' : '🇧🇦';
+              const alignPct = Math.round((person.align ?? 0.5) * 100);
+              return (
+                <div key={person.citizen} style={{
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  marginTop: '8px',
+                  fontSize: 'var(--text-xs)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontFamily: 'var(--font-data)',
+                    fontWeight: 'bold',
+                    color: 'var(--ink)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '14px' }}>{person.emoji ?? '🧑'}</span>
+                      <span>{person.citizen}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', opacity: 0.9 }}>
+                      <span>{flag}</span>
+                      <span style={{ color: flag === '🇨🇦' ? '#4ade80' : '#f87171' }}>{alignPct}%</span>
+                    </div>
+                  </div>
+                  <div style={{
+                    fontStyle: 'italic',
+                    color: 'var(--ink-muted)',
+                    lineHeight: '1.4',
+                    borderLeft: '2px solid rgba(255, 255, 255, 0.15)',
+                    paddingLeft: '6px',
+                    marginTop: '2px'
+                  }}>
+                    "{person.activity}"
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>

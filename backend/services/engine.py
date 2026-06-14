@@ -181,7 +181,7 @@ class SimulationEngine:
                 _clamp_state(district_state)
                 await self._save_state(district_state)
 
-        duration_minutes = EFFECT_DURATIONS.get(event.type, 120)
+        duration_minutes = getattr(event, "duration", None) or EFFECT_DURATIONS.get(event.type, 120)
         await self._broadcast_update(influenced, event, source=source, duration_minutes=duration_minutes)
         asyncio.create_task(self._broadcast_feed(influenced, event))
 
@@ -415,7 +415,13 @@ class SimulationEngine:
             memory_ops = []
             for (district_id, citizen_name), result in zip(citizen_index, citizen_results):
                 activity = result if isinstance(result, str) else f"{citizen_name} is caught up in the chaos like everyone else"
-                district_payloads[district_id]["citizens"].append({"citizen": citizen_name, "activity": activity})
+                char_data = next((c for c in roster if c["name"] == citizen_name), {})
+                district_payloads[district_id]["citizens"].append({
+                    "citizen": citizen_name,
+                    "activity": activity,
+                    "emoji": char_data.get("emoji", "🧑"),
+                    "align": char_data.get("align", 0.5),
+                })
                 memory_ops.append(
                     UpdateOne(
                         {"scenario_id": self.scenario.scenario_id, "citizen_name": citizen_name},

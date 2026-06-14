@@ -17,11 +17,12 @@ Output schema:
 {
     "type": "festival",
     "team": null,
-  "minute": 78,
-  "severity": 0.85,
+    "minute": 78,
+    "severity": 0.85,
+    "duration": 45,
     "description": "A street festival pops up downtown",
-  "organic_districts": null,
-  "custom_effects": null
+    "organic_districts": null,
+    "custom_effects": null
 }"""
 
 
@@ -50,6 +51,7 @@ async def interpret_natural_event(text: str, current_minute: int = 1) -> dict:
             team=data.get("team"),
             minute=data.get("minute") or current_minute,
             severity=float(data.get("severity", 0.6)),
+            duration=data.get("duration"),
         )
         return {
             "event": event,

@@ -1,9 +1,9 @@
 import { useState, useEffect, memo } from 'react';
 
 const EVENTS = [
-  { label: '🚇 TTC Delay',      type: 'transit_strike', team: null },
-  { label: '🌡️ Heat Wave',      type: 'heat_wave',      team: null },
-  { label: '⚽ Canada Scores',  type: 'goal',           team: 'Canada' },
+  { label: '🎉 Festival',       type: 'festival',       team: null },
+  { label: '⚡ Power Outage',   type: 'power_outage',   team: null },
+  { label: '✊ Protest',        type: 'protest',        team: null },
 ];
 
 const EVENT_ICONS = {

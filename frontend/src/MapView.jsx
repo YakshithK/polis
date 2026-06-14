@@ -190,6 +190,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   const agentMetaRef = useRef([]); // [{name, emoji, align, districtName, districtId}]
   const agentMemoryRef = useRef({}); // { agentIdx: [{minute, event, mood}] }
   const skipDistrictClickRef = useRef(false);
+  const userAgentRef = useRef(userAgent);
 
   const [selectedAgentIdx, setSelectedAgentIdx] = useState(null);
   const selectedAgentIdxRef = useRef(null);
@@ -665,24 +666,26 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
           renderDirty = false;
         }
 
-        // User agent dot
+        rafId = requestAnimationFrame(drawFrame);
+      }
+
+      rafId = requestAnimationFrame(drawFrame);
+      map.on('move', () => {
+        projectionDirty = true;
+        renderDirty = true;
         const userSource = map.getSource('user-agent-dot');
-        if (userSource && userAgent) {
+        if (userSource && userAgentRef.current) {
           const center = map.getCenter();
           userSource.setData({
             type: 'FeatureCollection',
             features: [{
               type: 'Feature',
               geometry: { type: 'Point', coordinates: [center.lng, center.lat] },
-              properties: { name: userAgent.name, job: userAgent.job },
+              properties: { name: userAgentRef.current.name, job: userAgentRef.current.job },
             }],
           });
         }
-        rafId = requestAnimationFrame(drawFrame);
-      }
-
-      rafId = requestAnimationFrame(drawFrame);
-      map.on('move', () => { projectionDirty = true; renderDirty = true; });
+      });
       map.on('remove', () => cancelAnimationFrame(rafId));
 
       // ── Hover tooltip ──────────────────────────────────────────────────
@@ -899,6 +902,26 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     if (!replayEvent) return;
     return triggerReplayWave(replayEvent);
   }, [replayEvent]);
+
+  // Update userAgentRef and user-agent-dot source on change
+  useEffect(() => {
+    userAgentRef.current = userAgent;
+    const map = mapRef.current;
+    if (map && map.isStyleLoaded() && userAgent) {
+      const userSource = map.getSource('user-agent-dot');
+      if (userSource) {
+        const center = map.getCenter();
+        userSource.setData({
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [center.lng, center.lat] },
+            properties: { name: userAgent.name, job: userAgent.job },
+          }],
+        });
+      }
+    }
+  }, [userAgent]);
 
   // Agent card data
   const selectedMeta = selectedAgentIdx !== null ? agentMetaRef.current[selectedAgentIdx] : null;
