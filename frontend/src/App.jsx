@@ -58,6 +58,7 @@ export default function App() {
         onDistrictClick={handleDistrictClick}
         replayEvent={replayEvent}
         userAgent={userAgent}
+        feedEntries={feedEntries}
       />
 
       {/* Splash */}
@@ -94,6 +95,7 @@ export default function App() {
             eventLog={eventLog}
             onEventClick={handleEventLogClick}
             activityByDistrict={activityByDistrict}
+            matchMinute={matchMinute}
           />
 
           {/* Right: always-visible feed panel */}
@@ -125,6 +127,7 @@ export default function App() {
               feedEntries={feedEntries}
               eventLog={eventLog}
               onClose={() => setClickedDistrict(null)}
+              matchMinute={matchMinute}
             />
           )}
         </>

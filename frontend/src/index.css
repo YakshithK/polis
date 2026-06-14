@@ -1038,3 +1038,339 @@ body {
     opacity: 0;
   }
 }
+
+/* ── Landmark markers (Apple Maps style) ── */
+.landmark-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: default;
+  pointer-events: none;
+}
+.lm-emoji {
+  font-size: 18px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+}
+.lm-name {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  background: rgba(255,255,255,0.85);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-top: 1px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+/* ── Agent Card ── */
+@keyframes agentCardEnter {
+  from { opacity: 0; transform: scale(0.92) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.agent-card {
+  position: absolute;
+  z-index: 25;
+  width: 230px;
+  background: var(--surface-0);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06);
+  animation: agentCardEnter 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-card-emoji {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.agent-card-name {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--ink-primary);
+  line-height: 1.2;
+}
+
+.agent-card-district {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.agent-card-align {
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 3px 8px;
+  background: var(--surface-1);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.agent-card-quote {
+  font-size: var(--text-sm);
+  color: var(--ink-primary);
+  line-height: 1.45;
+  font-style: italic;
+  border-left: 2px solid var(--brand);
+  padding-left: 8px;
+}
+
+.agent-card-memory {
+  font-size: var(--text-xs);
+  border-top: 1px solid var(--surface-border);
+  padding-top: 8px;
+}
+
+.agent-card-memory-row {
+  color: var(--ink-secondary);
+  margin-bottom: 3px;
+  font-family: var(--font-data);
+  font-size: 10px;
+}
+
+/* ── Scenario chips ── */
+.scenario-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.scenario-chips-label {
+  font-family: var(--font-data);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink-muted);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.scenario-chip {
+  font-family: var(--font-body);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-1);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.scenario-chip:hover {
+  background: var(--brand-light);
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.scenario-chip-more {
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-1);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: background 0.12s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.scenario-chip-more:hover {
+  background: var(--surface-2);
+  color: var(--ink-primary);
+}
+
+/* ── Event decay bar in Events tab ── */
+.lp-event-decay-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  width: 60px;
+}
+
+.lp-event-decay-bar {
+  height: 3px;
+  background: var(--brand);
+  border-radius: 2px;
+  transition: width 1s linear;
+  flex: 1;
+}
+
+.lp-event-decay-time {
+  font-family: var(--font-data);
+  font-size: 9px;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+  width: 20px;
+  text-align: right;
+}
+
+/* ── City stats rows in Pulse tab ── */
+.city-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  margin-bottom: 5px;
+}
+
+.city-stat-row:last-child { margin-bottom: 0; }
+
+.city-stat-val {
+  font-family: var(--font-data);
+  color: var(--ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── District card geo grid ── */
+.card-geo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin-bottom: 8px;
+}
+
+.card-geo-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-geo-key {
+  font-size: 10px;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.card-geo-val {
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  color: var(--ink-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-support-bar-track {
+  height: 4px;
+  background: var(--surface-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.card-support-bar-fill {
+  height: 100%;
+  background: var(--canada);
+  border-radius: 2px;
+  transition: width 0.4s ease-out;
+}
+
+/* ── District card active effects ── */
+.card-effect-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  margin-bottom: 6px;
+}
+
+.card-effect-row:last-child { margin-bottom: 0; }
+
+.card-effect-label {
+  color: var(--ink-secondary);
+  flex: 1;
+}
+
+.card-effect-time {
+  font-family: var(--font-data);
+  font-size: 10px;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+  width: 24px;
+  text-align: right;
+}
+
+.card-effect-track {
+  width: 48px;
+  height: 3px;
+  background: var(--surface-2);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.card-effect-fill {
+  height: 100%;
+  background: var(--brand);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+/* ── District card agent chips ── */
+.card-agents-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.card-agent-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  padding: 3px 7px;
+  font-size: var(--text-xs);
+}
+
+.card-agent-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.card-agent-name {
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+
+.card-resident-quote {
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  font-style: italic;
+  line-height: 1.4;
+  padding-left: 8px;
+  border-left: 2px solid var(--surface-border);
+}
+
+/* Controls bar height adjustment for scenario chips */
+.bottom-panel {
+  height: 130px;
+}
+
+.controls-bar {
+  gap: 6px;
+}

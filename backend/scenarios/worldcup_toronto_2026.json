@@ -34,5 +34,19 @@
     "east_york":       [43.6920, -79.3194],
     "west_end":        [43.6426, -79.4559],
     "midtown":         [43.6977, -79.3855]
+  },
+  "district_geo": {
+    "scarborough":     {"population": 629244, "area_km2": 187.7, "density_per_km2": 3354},
+    "north_york":      {"population": 655571, "area_km2": 174.0, "density_per_km2": 3767},
+    "etobicoke":       {"population": 380000, "area_km2": 131.0, "density_per_km2": 2901},
+    "downtown":        {"population": 296378, "area_km2": 7.1,   "density_per_km2": 41744},
+    "rosedale":        {"population": 15200,  "area_km2": 2.3,   "density_per_km2": 6608},
+    "kensington":      {"population": 22000,  "area_km2": 1.4,   "density_per_km2": 15714},
+    "little_portugal": {"population": 25000,  "area_km2": 1.8,   "density_per_km2": 13889},
+    "little_italy":    {"population": 20000,  "area_km2": 1.6,   "density_per_km2": 12500},
+    "east_york":       {"population": 117000, "area_km2": 21.5,  "density_per_km2": 5442},
+    "west_end":        {"population": 85000,  "area_km2": 12.0,  "density_per_km2": 7083},
+    "midtown":         {"population": 95000,  "area_km2": 14.8,  "density_per_km2": 6419},
+    "yorkville":       {"population": 28000,  "area_km2": 2.5,   "density_per_km2": 11200}
   }
 }

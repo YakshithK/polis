@@ -21,10 +21,22 @@ const PLACEHOLDERS = [
   "Festival starting in Little Italy tonight…",
 ];
 
+const SCENARIO_CHIPS = [
+  { emoji: '🦠', label: 'COVID returns',     prompt: 'A new COVID outbreak has just been announced. Schools and transit closing.' },
+  { emoji: '🌡️', label: 'Heat wave',         prompt: 'Extreme heat wave hits Toronto, temperature hits 42°C this afternoon.' },
+  { emoji: '⚡',  label: 'Power outage',      prompt: 'Major power outage across downtown and midtown, affecting transit and watch parties.' },
+  { emoji: '🎪', label: 'Festival downtown', prompt: 'A massive street festival has taken over King Street West and the Entertainment District.' },
+  { emoji: '🏆', label: 'Canada wins',       prompt: 'Canada just won the World Cup final in the 120th minute of extra time.' },
+  { emoji: '🚇', label: 'TTC strike',        prompt: 'TTC workers have just announced an emergency strike effective immediately.' },
+  { emoji: '🌧️', label: 'Thunderstorm',     prompt: 'Severe thunderstorm warning across Toronto, outdoor events being cancelled.' },
+  { emoji: '🎆', label: 'Celebration',       prompt: 'Spontaneous celebrations breaking out across the city after the match.' },
+];
+
 export default memo(function ControlsBar({ onEvent, autopilotStatus, onAutopilot, strictness, onStrictness, nlState, interpretation, onNaturalEvent }) {
   const [text, setText] = useState('');
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [flashingBtn, setFlashingBtn] = useState(null);
+  const [chipStart, setChipStart] = useState(0);
 
   const autopilotActive = autopilotStatus === 'generating' || autopilotStatus === 'running';
 
@@ -45,6 +57,8 @@ export default memo(function ControlsBar({ onEvent, autopilotStatus, onAutopilot
     setTimeout(() => setFlashingBtn(null), 320);
   };
 
+  const visibleChips = SCENARIO_CHIPS.slice(chipStart, chipStart + 5);
+
   const autopilotLabel = {
     idle:       '🤖 Auto',
     generating: '⏳ …',
@@ -54,7 +68,7 @@ export default memo(function ControlsBar({ onEvent, autopilotStatus, onAutopilot
 
   return (
     <div className="controls-bar glass">
-      {/* NL Input — hero */}
+      {/* NL Input */}
       <div className="nl-input-wrapper">
         <span className="nl-input-icon">✦</span>
         <input
@@ -76,6 +90,28 @@ export default memo(function ControlsBar({ onEvent, autopilotStatus, onAutopilot
           {EVENT_ICONS[interpretation.type] ?? '•'} {interpretation.description} · {interpretation.minute}' · {interpretation.severity?.toFixed(2)}
         </div>
       )}
+
+      {/* Scenario chips */}
+      <div className="scenario-chips-row">
+        <span className="scenario-chips-label">IDEAS</span>
+        {visibleChips.map(chip => (
+          <button
+            key={chip.label}
+            className="scenario-chip"
+            onClick={() => setText(chip.prompt)}
+            title={chip.prompt}
+          >
+            {chip.emoji} {chip.label}
+          </button>
+        ))}
+        <button
+          className="scenario-chip-more"
+          onClick={() => setChipStart(s => (s + 5) % SCENARIO_CHIPS.length)}
+          title="More scenarios"
+        >
+          ›
+        </button>
+      </div>
 
       {/* Quick actions */}
       <div className="quick-actions">

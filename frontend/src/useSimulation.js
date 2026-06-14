@@ -20,12 +20,10 @@ export function useSimulation() {
   const retryTimerRef = useRef(null);
   const mountedRef = useRef(true);
   const seenEventKeysRef = useRef(new Set());
-  // Always points to the current connect() — avoids stale-closure bugs in WS handlers
   const connectRef = useRef(null);
 
   const handleMessage = useCallback((e) => {
     const msg = JSON.parse(e.data);
-    // Backend has no active engine for this session — create a fresh one
     if (msg.type === 'no_session') {
       setTimeout(() => connectRef.current?.(), 500);
       return;
@@ -37,14 +35,21 @@ export function useSimulation() {
         return next;
       });
       if (msg.type === 'update') {
-        // Deduplicate: same event type+minute within 3s means a duplicate broadcast
         const dedupKey = `${msg.event.type}-${msg.event.minute}-${msg.source ?? ''}`;
         if (seenEventKeysRef.current.has(dedupKey)) return;
         seenEventKeysRef.current.add(dedupKey);
         setTimeout(() => seenEventKeysRef.current.delete(dedupKey), 3000);
 
         setLastEvent(msg.event);
-        setEventLog(prev => [...prev, { ...msg.event, source: msg.source ?? 'autopilot', ts: Date.now() }].slice(-50));
+        setEventLog(prev => [
+          ...prev,
+          {
+            ...msg.event,
+            source: msg.source ?? 'autopilot',
+            ts: Date.now(),
+            duration_minutes: msg.duration_minutes ?? 120,
+          },
+        ].slice(-50));
       }
     }
     if (msg.type === 'tick') {
@@ -81,12 +86,10 @@ export function useSimulation() {
 
   const openWs = useCallback((sid) => {
     if (!mountedRef.current) return;
-    // Tear down the old socket before opening a new one — prevents duplicate
-    // message handlers when React StrictMode or reconnects create a second socket
     const prev = wsRef.current;
     if (prev) {
-      prev.onclose = null;   // suppress the reconnect timer
-      prev.onmessage = null; // stop duplicate event delivery immediately
+      prev.onclose = null;
+      prev.onmessage = null;
       if (prev.readyState < 2) prev.close();
     }
     const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -101,9 +104,6 @@ export function useSimulation() {
     ws.onclose = (event) => {
       if (!mountedRef.current) return;
       setConnected(false);
-      // code 1006 = abnormal (server down/restart) → need a fresh session
-      // code 4000 = backend sent no_session → handleMessage already triggered connect
-      // any other code = normal drop → reconnect to same session
       if (event.code === 1006) {
         retryTimerRef.current = setTimeout(() => connectRef.current?.(), 2000);
       } else if (event.code !== 4000) {
@@ -132,7 +132,6 @@ export function useSimulation() {
       retryTimerRef.current = setTimeout(() => connectRef.current?.(), 3000);
     }
   }, [openWs]);
-  // Keep ref current so closures in WS handlers always get the latest connect
   connectRef.current = connect;
 
   const injectEvent = useCallback(async (type, team) => {
@@ -191,5 +190,9 @@ export function useSimulation() {
     };
   }, []);
 
-  return { sessionId, districts, feedEntries, activityEntries, activityByDistrict, connected, connectionError, injectEvent, lastEvent, autopilotStatus, triggerAutopilot, eventLog, matchMinute, nlState, interpretation, submitNaturalEvent };
+  return {
+    sessionId, districts, feedEntries, activityEntries, activityByDistrict,
+    connected, connectionError, injectEvent, lastEvent, autopilotStatus,
+    triggerAutopilot, eventLog, matchMinute, nlState, interpretation, submitNaturalEvent,
+  };
 }

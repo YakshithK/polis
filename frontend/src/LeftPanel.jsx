@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import MoodBar from './MoodBar';
+import { DISTRICT_GEO, EFFECT_DURATIONS } from './agents';
 
 const EVENT_ICONS = {
   transit_strike:        '🚇',
@@ -16,7 +17,14 @@ const EVENT_ICONS = {
   city_buzz:             '🏙️',
   neighbourhood_chatter: '💬',
   street_party_forming:  '🎊',
+  goal:                  '⚽',
+  red_card:              '🟥',
+  var_review:            '📺',
+  penalty_miss:          '😬',
+  championship_win:      '🏆',
+  elimination:           '💔',
 };
+
 const SOURCE_BADGE = {
   manual:    { label: 'YOU',  color: '#2563eb' },
   natural:   { label: 'NL',   color: '#7c3aed' },
@@ -55,7 +63,8 @@ function PulseTab({ districts, activityByDistrict }) {
   const avgPri = avg(d => d.emotion?.pride);
   const avgFru = avg(d => d.emotion?.frustration);
 
-  // City pulse = average peak activation across districts (responds to any emotion, not just excitement)
+  const avgExcitement = Math.round(avgExc);
+
   const ranked = [...list].sort((a, b) => peakEmotion(b) - peakEmotion(a));
   const cityPulse = Math.round(
     50 +
@@ -65,7 +74,23 @@ function PulseTab({ districts, activityByDistrict }) {
     (ranked[2] ? excessEmotion(ranked[2]) * 0.5 : 0)
   );
 
-  // Hottest = districts with the highest single-emotion peak right now
+  // Affected population: districts with excitement > 65
+  const affectedPop = list.reduce((sum, d) => {
+    if ((d.emotion?.excitement ?? 0) > 65) {
+      const geo = DISTRICT_GEO[d.district_id];
+      return sum + (geo?.population ?? 0);
+    }
+    return sum;
+  }, 0);
+
+  const totalPop = Object.values(DISTRICT_GEO).reduce((s, g) => s + g.population, 0);
+  const totalArea = Object.values(DISTRICT_GEO).reduce((s, g) => s + g.area_km2, 0);
+  const activeDistrictsCount = list.filter(d => peakEmotion(d) > 55).length;
+
+  const avgCanadaSupport = Math.round(
+    list.reduce((s, d) => s + (DISTRICT_GEO[d.district_id]?.canada_support ?? 60), 0) / (list.length || 1)
+  );
+
   const domEmotion = (d) => {
     const e = d.emotion ?? {};
     const peak = Math.max(e.excitement ?? 0, e.tension ?? 0, e.pride ?? 0, e.frustration ?? 0);
@@ -74,15 +99,24 @@ function PulseTab({ districts, activityByDistrict }) {
     if (peak === e.pride)       return { val: peak, label: 'Pride',       color: '#2563eb' };
     return                               { val: peak, label: 'Happiness',  color: '#ea580c' };
   };
-  const hottest = ranked
-    .slice(0, 3);
+  const hottest = ranked.slice(0, 3);
+
+  const fmtPop = (n) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(2)}M` : n >= 1000 ? `${Math.round(n/1000)}K` : String(n);
 
   return (
     <div className="lp-scroll">
       <div className="stats-section">
         <div className="stats-label">City Pulse</div>
         <div className="city-pulse-number" style={{ color: pulseColor(cityPulse) }}>{cityPulse}</div>
-        <div className="city-pulse-sub">avg peak emotion</div>
+        <div className="city-pulse-sub">avg excitement {avgExcitement}</div>
+      </div>
+
+      <div className="stats-section">
+        <div className="stats-label">Affected Population</div>
+        <div className="city-pulse-number" style={{ fontSize: 'var(--text-xl)', color: pulseColor(cityPulse) }}>
+          {fmtPop(affectedPop)}
+        </div>
+        <div className="city-pulse-sub">currently excited (excitement &gt; 65)</div>
       </div>
 
       <div className="stats-section">
@@ -97,17 +131,28 @@ function PulseTab({ districts, activityByDistrict }) {
         <div className="stats-label">Hottest Now</div>
         {hottest.map(d => {
           const dom = domEmotion(d);
+          const geo = DISTRICT_GEO[d.district_id];
           return (
             <div key={d.district_id} className="hottest-row">
               <span>🔥</span>
               <span className="hottest-name">
                 {d.district_id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
               </span>
-              <span className="hottest-val" style={{ color: dom.color }}>{dom.label} {Math.round(dom.val)} · +{Math.round(excessEmotion(d))}</span>
+              <span className="hottest-val" style={{ color: dom.color }}>
+                {Math.round(dom.val)} · {geo ? fmtPop(geo.population) : ''}
+              </span>
             </div>
           );
         })}
         {!hottest.length && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-muted)' }}>Loading…</div>}
+      </div>
+
+      <div className="stats-section">
+        <div className="stats-label">City Stats</div>
+        <div className="city-stat-row"><span>Total population</span><span className="city-stat-val">{fmtPop(totalPop)}</span></div>
+        <div className="city-stat-row"><span>City area</span><span className="city-stat-val">{Math.round(totalArea)} km²</span></div>
+        <div className="city-stat-row"><span>Districts active</span><span className="city-stat-val">{activeDistrictsCount} / {list.length}</span></div>
+        <div className="city-stat-row"><span>🇨🇦 Support avg</span><span className="city-stat-val">{avgCanadaSupport}%</span></div>
       </div>
 
       <div className="stats-section">
@@ -122,7 +167,7 @@ function PulseTab({ districts, activityByDistrict }) {
 
       <div className="stats-section">
         <div className="stats-label">Citizens</div>
-        {Object.entries(activityByDistrict ?? {}).slice(0, 6).map(([district, payload]) => (
+        {Object.entries(activityByDistrict ?? {}).slice(0, 4).map(([district, payload]) => (
           <div key={district} style={{ marginBottom: 10 }}>
             <div className="hottest-name">{district.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</div>
             <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-muted)' }}>{payload?.archetype}</div>
@@ -139,7 +184,7 @@ function PulseTab({ districts, activityByDistrict }) {
 }
 
 
-function EventsTab({ eventLog, onEventClick }) {
+function EventsTab({ eventLog, onEventClick, matchMinute }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -151,29 +196,41 @@ function EventsTab({ eventLog, onEventClick }) {
       {eventLog.length === 0 ? (
         <div className="feed-empty-state">No events yet.<br />Inject an event below to begin.</div>
       ) : (
-        eventLog.map((ev, i) => (
-          <div
-            key={i}
-            className="lp-event-row"
-            onClick={() => onEventClick?.(ev)}
-            title="Click to replay visual wave"
-          >
-            <span className="lp-event-icon">{EVENT_ICONS[ev.type] ?? '•'}</span>
-            <span className="lp-event-min">{ev.minute}'</span>
+        eventLog.map((ev, i) => {
+          const duration = ev.duration_minutes ?? EFFECT_DURATIONS[ev.type] ?? 120;
+          const elapsed = Math.max(0, matchMinute - (ev.minute ?? 0));
+          const remaining = Math.max(0, duration - elapsed);
+          const pct = duration > 0 ? (remaining / duration) : 0;
 
-            <span className="lp-event-label">
-              {ev.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-            </span>
-            {(() => {
-              const badge = SOURCE_BADGE[ev.source] ?? SOURCE_BADGE.autopilot;
-              return (
-                <span className="lp-event-source" style={{ background: badge.color }}>
-                  {badge.label}
-                </span>
-              );
-            })()}
-          </div>
-        ))
+          return (
+            <div
+              key={i}
+              className="lp-event-row"
+              onClick={() => onEventClick?.(ev)}
+              title="Click to replay visual wave"
+            >
+              <span className="lp-event-icon">{EVENT_ICONS[ev.type] ?? '•'}</span>
+              <span className="lp-event-min">{ev.minute}'</span>
+              <span className="lp-event-label">
+                {ev.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              </span>
+              {(() => {
+                const badge = SOURCE_BADGE[ev.source] ?? SOURCE_BADGE.autopilot;
+                return (
+                  <span className="lp-event-source" style={{ background: badge.color }}>
+                    {badge.label}
+                  </span>
+                );
+              })()}
+              {remaining > 0 && (
+                <div className="lp-event-decay-wrap">
+                  <div className="lp-event-decay-bar" style={{ width: `${Math.round(pct * 100)}%` }} />
+                  <span className="lp-event-decay-time">{remaining}'</span>
+                </div>
+              )}
+            </div>
+          );
+        })
       )}
       <div ref={bottomRef} />
     </div>
@@ -185,7 +242,7 @@ const TABS = [
   { id: 'events', label: 'Events' },
 ];
 
-export default function LeftPanel({ districts, eventLog, onEventClick, activityByDistrict }) {
+export default function LeftPanel({ districts, eventLog, onEventClick, activityByDistrict, matchMinute }) {
   const [activeTab, setActiveTab] = useState('pulse');
 
   return (
@@ -204,7 +261,7 @@ export default function LeftPanel({ districts, eventLog, onEventClick, activityB
 
       <div className="left-panel-body">
         {activeTab === 'pulse'  && <PulseTab  districts={districts} activityByDistrict={activityByDistrict} />}
-        {activeTab === 'events' && <EventsTab eventLog={eventLog} onEventClick={onEventClick} />}
+        {activeTab === 'events' && <EventsTab eventLog={eventLog} onEventClick={onEventClick} matchMinute={matchMinute} />}
       </div>
     </div>
   );

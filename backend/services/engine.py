@@ -11,7 +11,10 @@ from pymongo import UpdateOne
 from backend.models.district import DistrictState
 from backend.models.event import MatchEvent
 from backend.services.scenario import ScenarioConfig
-from backend.services.rules import apply_event, compute_influence, decay_state, _clamp_state
+from backend.services.rules import (
+    apply_event, compute_influence, _clamp_state,
+    DECAY_FACTOR, BASELINE, EFFECT_DURATIONS,
+)
 from backend.services.narrator import (
     generate_citizen_activity,
     generate_district_archetype,
@@ -56,7 +59,6 @@ class SimulationEngine:
         self._lock = asyncio.Lock()
         self._last_manual_event_time = 0.0
         self._last_event_type: str | None = None
-        self._active_effects: list[dict] = []
 
     async def start(self) -> None:
         """Load district states from DB and start the background processing loops."""
@@ -109,21 +111,19 @@ class SimulationEngine:
             await self.ws_manager.broadcast({"type": "autopilot", "status": "generating"})
             timeline = await generate_timeline(context, expressive=expressive)
             self._autopilot_timeline = timeline
-            
-            # Reset clock to 0 and start the match!
+
             self.simulation_clock = 0
             await self.ws_manager.broadcast({
-                "type": "autopilot", 
-                "status": "running", 
+                "type": "autopilot",
+                "status": "running",
                 "events": len(timeline),
                 "timeline": [e.model_dump() for e in timeline]
             })
             logger.info("Autopilot initialized with %d events, expressive=%s", len(timeline), expressive)
-            
-            # Just keep this task alive until we reach 90 or it is cancelled
+
             while self._running and self._autopilot_active and self.simulation_clock < 90:
                 await asyncio.sleep(0.5)
-            
+
             if self.simulation_clock >= 90:
                 self._autopilot_active = False
                 await self.ws_manager.broadcast({"type": "autopilot", "status": "finished"})
@@ -136,20 +136,13 @@ class SimulationEngine:
             await self.ws_manager.broadcast({"type": "autopilot", "status": "idle"})
 
     async def inject_event(self, event: MatchEvent, *, source: str = "autopilot") -> None:
-        """Enqueue an event for processing.
-
-        source: 'manual' (UI buttons), 'autopilot' (director timeline), or 'organic' (tick roll).
-        Only manual injections suppress organic events for 30s.
-        """
         await self.event_queue.put((event, source))
 
     async def get_all_states(self) -> list[DistrictState]:
-        """Return current district states from DB."""
         docs = await self.db["districts"].find({}).to_list(length=None)
         return [DistrictState.model_validate(doc) for doc in docs]
 
     async def _processing_loop(self) -> None:
-        """Main event loop: dequeue → apply rules → broadcast."""
         while self._running:
             try:
                 event, source = await self.event_queue.get()
@@ -169,7 +162,7 @@ class SimulationEngine:
                 self.event_queue.task_done()
 
     async def _process_event(self, event: MatchEvent, *, source: str = "autopilot") -> None:
-        """Apply deterministic delta rules to all districts, then broadcast."""
+        """Apply ActiveEffect to all districts, recompute emotions, broadcast."""
         self._last_event_type = event.type
         impact_scale = 1.45 if source == "manual" else 1.0
         if source == "natural":
@@ -183,139 +176,48 @@ class SimulationEngine:
             influenced = compute_influence(event, states, self.scenario)
             for district_state, distance_rank in influenced:
                 apply_event(district_state, event, distance_rank=distance_rank, impact_scale=impact_scale)
+                # Recompute emotion immediately so broadcast has fresh values
+                district_state.emotion = district_state.compute_emotions(event.minute)
+                _clamp_state(district_state)
                 await self._save_state(district_state)
 
-        duration = self._event_duration_ticks(event)
-        if duration > 0:
-            self._active_effects.append({
-                "type": event.type,
-                "source_district": event.source_district,
-                "severity": event.severity,
-                "remaining": duration,
-                "impact_scale": impact_scale,
-            })
-
-        await self._broadcast_update(influenced, event, source=source)
+        duration_minutes = EFFECT_DURATIONS.get(event.type, 120)
+        await self._broadcast_update(influenced, event, source=source, duration_minutes=duration_minutes)
         asyncio.create_task(self._broadcast_feed(influenced, event))
 
-    def _simulation_hour(self, minute: int) -> float:
-        """Map the 0-90 simulation minute onto the 24-hour day shown in the top banner."""
-        elapsed = (minute / 90.0) * (24 * 60)
-        total_minutes = 6 * 60 + elapsed
-        return (total_minutes / 60.0) % 24.0
-
-    def _event_duration_ticks(self, event: MatchEvent) -> int:
-        """Return how long an event should keep pushing the city, in tick units."""
-        hour = self._simulation_hour(event.minute)
-
-        if event.type == "heat_wave":
-            if 11.0 <= hour < 17.0:
-                return 18
-            if 9.0 <= hour < 11.0 or 17.0 <= hour < 20.0:
-                return 12
-            return 8
-
-        if event.type == "transit_strike":
-            return 14
-        if event.type == "festival":
-            return 10
-        if event.type == "power_outage":
-            return 12
-        if event.type == "major_layoffs":
-            return 16
-        if event.type == "cultural_event":
-            return 10
-        if event.type == "protest":
-            return 12
-        if event.type == "street_fair":
-            return 8
-
-        return 0
-
-    def _apply_active_effects(self, states: list[DistrictState]) -> None:
-        """Re-apply sustained event pressure each tick so major events linger."""
-        if not self._active_effects:
-            return
-
-        states_by_id = {state.district_id: state for state in states}
-        next_effects: list[dict] = []
-
-        for effect in self._active_effects:
-            remaining = int(effect.get("remaining", 0))
-            if remaining <= 0:
-                continue
-
-            event = MatchEvent(
-                type=effect["type"],
-                team=None,
-                minute=self.simulation_clock,
-                severity=float(effect.get("severity", 1.0)),
-                source_district=effect.get("source_district"),
-            )
-            influenced = compute_influence(event, states, self.scenario)
-            sustained_scale = 0.24 * float(effect.get("impact_scale", 1.0))
-
-            for district_state, distance_rank in influenced:
-                if effect["type"] == "heat_wave":
-                    # Hot weather lingers through the day and steadily pushes stress up.
-                    apply_event(
-                        district_state,
-                        event,
-                        distance_rank=distance_rank,
-                        impact_scale=sustained_scale,
-                    )
-                elif effect["type"] in {"transit_strike", "power_outage", "major_layoffs", "protest"}:
-                    apply_event(
-                        district_state,
-                        event,
-                        distance_rank=distance_rank,
-                        impact_scale=sustained_scale * 0.7,
-                    )
-                else:
-                    apply_event(
-                        district_state,
-                        event,
-                        distance_rank=distance_rank,
-                        impact_scale=sustained_scale * 0.5,
-                    )
-
-            remaining -= 1
-            if remaining > 0:
-                effect["remaining"] = remaining
-                next_effects.append(effect)
-
-        self._active_effects = next_effects
-        for state in states:
-            states_by_id[state.district_id] = state
-
     async def _tick_loop(self) -> None:
-        """Runs once per second: increment clock, decay, breathe, roll organic event, broadcast."""
+        """Runs once per second: increment clock, recompute emotions from ActiveEffects, broadcast."""
         while self._running:
             try:
                 await asyncio.sleep(1.0)
                 if not self._running:
                     break
-                
+
                 self.simulation_clock = min(self.simulation_clock + 1, 90)
-                
+
                 async with self._lock:
                     states = await self.get_all_states()
                     for state in states:
-                        decay_state(state)
+                        # Prune expired effects, recompute emotions from active ones
+                        state.prune_expired(self.simulation_clock)
+                        state.emotion = state.compute_emotions(self.simulation_clock)
+
+                        # Breathing noise
                         state.emotion.excitement  += random.uniform(-0.8, 0.8)
                         state.emotion.tension     += random.uniform(-0.6, 0.6)
                         state.emotion.frustration += random.uniform(-0.4, 0.4)
                         state.emotion.pride       += random.uniform(-0.5, 0.5)
-                        state.activity.social     += random.uniform(-1.0, 1.0)
+
+                        # Activity decays toward baseline
+                        state.activity.social   = state.activity.social   * DECAY_FACTOR + BASELINE * (1 - DECAY_FACTOR)
+                        state.activity.mobility = state.activity.mobility * DECAY_FACTOR + BASELINE * (1 - DECAY_FACTOR)
+                        state.activity.social   += random.uniform(-1.0, 1.0)
+
                         _clamp_state(state)
 
-                    self._apply_active_effects(states)
-
-                    # Batch all 12 writes in one round-trip instead of 12 serial
-                    # Atlas calls (was holding the lock ~600ms; now ~50ms).
                     await self._save_states_batch(states)
-                
-                # Check for autopilot timeline events (skip halftime/fulltime minutes)
+
+                # Autopilot timeline events
                 if self._autopilot_active and self.simulation_clock not in (45, 90):
                     current_events = [
                         e for e in self._autopilot_timeline
@@ -330,29 +232,27 @@ class SimulationEngine:
 
                 if self.simulation_clock > 0 and self.simulation_clock % 30 == 0:
                     asyncio.create_task(self._run_agent_batch())
-                
+
                 # Roll for organic events (4% chance per tick) if not suppressed
                 if self.simulation_clock < 90 and random.random() < 0.04:
                     if time.time() - self._last_manual_event_time > 30.0:
                         await self._trigger_random_organic_event()
                     else:
                         logger.info("Organic event suppressed (30s cooldown active)")
-                
+
                 # Roll for ambient feed posts every 5 seconds (15% chance)
                 if self.simulation_clock > 0 and self.simulation_clock % 5 == 0:
                     if random.random() < 0.15:
                         asyncio.create_task(self._trigger_ambient_feed_posts(states))
-                
-                # Broadcast tick (decay/breathing/clock)
+
                 await self._broadcast_tick(states)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception:
                 logger.exception("Error in simulation tick loop")
 
     async def _trigger_random_organic_event(self) -> None:
-        """Trigger a random minor organic event in a random district."""
         event_types = [
             "street_party",
             "city_buzz",
@@ -366,9 +266,7 @@ class SimulationEngine:
         if not districts:
             return
         source_district = random.choice(districts)
-
         severity = round(random.uniform(0.3, 0.7), 2)
-        
         event = MatchEvent(
             type=evt_type,
             team=None,
@@ -380,7 +278,6 @@ class SimulationEngine:
         await self.inject_event(event, source="organic")
 
     async def _save_state(self, state: DistrictState) -> None:
-        """Persist a single district state to MongoDB."""
         await self.db["districts"].replace_one(
             {"district_id": state.district_id},
             state.model_dump(),
@@ -388,7 +285,6 @@ class SimulationEngine:
         )
 
     async def _save_states_batch(self, states: list[DistrictState]) -> None:
-        """Persist all district states in one MongoDB round-trip."""
         from pymongo import ReplaceOne
         ops = [
             ReplaceOne(
@@ -407,14 +303,15 @@ class SimulationEngine:
         event: MatchEvent,
         *,
         source: str = "autopilot",
+        duration_minutes: int = 120,
     ) -> None:
-        """Broadcast state update to WebSocket clients."""
         if not self.ws_manager:
             return
         payload = {
             "type": "update",
             "source": source,
             "event": event.model_dump(),
+            "duration_minutes": duration_minutes,
             "districts": [
                 {**s.model_dump(), "distance_rank": rank}
                 for s, rank in influenced
@@ -423,7 +320,6 @@ class SimulationEngine:
         await self.ws_manager.broadcast(payload)
 
     async def _broadcast_tick(self, states: list[DistrictState]) -> None:
-        """Broadcast simulation clock tick and updated district states to clients."""
         if not self.ws_manager:
             return
         payload = {
@@ -438,7 +334,6 @@ class SimulationEngine:
         influenced: list[tuple[DistrictState, int]],
         event: MatchEvent,
     ) -> None:
-        """Generate and broadcast social feed posts for 2-3 key districts (non-blocking)."""
         if not self.ws_manager:
             return
         key_districts = pick_key_districts(
@@ -462,7 +357,6 @@ class SimulationEngine:
             })
 
     async def _run_agent_batch(self) -> None:
-        """Generate district archetypes, citizen activities, and rolling memories."""
         try:
             states = await self.get_all_states()
             if not states:
@@ -558,14 +452,13 @@ class SimulationEngine:
             logger.exception("Error in agent batch generation")
 
     async def _trigger_ambient_feed_posts(self, states: list[DistrictState]) -> None:
-        """Pick 2-3 districts and broadcast ambient posts reacting to general city vibe."""
         if not self.ws_manager:
             return
         count = min(len(states), random.randint(2, 3))
         selected = random.sample(states, count)
-        
+
         from backend.services.narrator import generate_ambient_post
-        
+
         tasks = [generate_ambient_post(s, self.simulation_clock) for s in selected]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         ts = int(time.time())
@@ -582,4 +475,3 @@ class SimulationEngine:
                 "text": text,
                 "ts": ts,
             })
-
