@@ -9,7 +9,9 @@ router = APIRouter()
 
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    engine = _engines.get(session_id)
+    # Exact match first; fall back to any running engine (handles server restarts
+    # and React StrictMode double-mount where stop_all_engines kills the old session).
+    engine = _engines.get(session_id) or (next(iter(_engines.values()), None) if _engines else None)
     if not engine:
         await websocket.close(code=4004)
         return

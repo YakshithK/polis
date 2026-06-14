@@ -91,11 +91,16 @@ export function useSimulation() {
       setConnected(true);
       setConnectionError(null);
     };
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (!mountedRef.current) return;
       setConnected(false);
-      // Reconnect to same session after 2s
-      retryTimerRef.current = setTimeout(() => openWs(sid), 2000);
+      // code 1006 = abnormal close (403 rejection, server restart) → need a fresh session
+      // any other code = normal drop → reconnect to same session
+      if (event.code === 1006) {
+        retryTimerRef.current = setTimeout(connect, 2000);
+      } else {
+        retryTimerRef.current = setTimeout(() => openWs(sid), 2000);
+      }
     };
     ws.onmessage = handleMessage;
   }, [handleMessage]);
