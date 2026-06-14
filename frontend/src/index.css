@@ -119,6 +119,7 @@ body {
   letter-spacing: 0.2em;
   color: var(--text-muted);
   white-space: nowrap;
+  flex: 0 0 88px;
 }
 
 .scorebar-center {
@@ -127,6 +128,7 @@ body {
   gap: 10px;
   flex: 1;
   justify-content: center;
+  min-width: 0;
 }
 
 .scorebar-team {
@@ -160,8 +162,10 @@ body {
   font-family: var(--font-data);
   font-size: var(--text-sm);
   color: var(--accent);
-  font-weight: 400;
+  font-weight: 700;
   white-space: nowrap;
+  flex: 0 0 88px;
+  text-align: right;
 }
 
 .scorebar-progress {
@@ -979,7 +983,6 @@ body {
 /* ── Match Clock Flash ────────────────────────────── */
 .clock-flash {
   animation: clockFlashAnimation 1s infinite alternate;
-  font-weight: 700 !important;
 }
 
 @keyframes clockFlashAnimation {
