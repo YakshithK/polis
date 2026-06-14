@@ -172,7 +172,7 @@ class SimulationEngine:
             for district_state, distance_rank in influenced:
                 apply_event(district_state, event, distance_rank=distance_rank)
                 await self._save_state(district_state)
-        await self._broadcast_update(influenced, event)
+        await self._broadcast_update(influenced, event, source=source)
         asyncio.create_task(self._broadcast_feed(influenced, event))
 
     async def _tick_loop(self) -> None:
@@ -288,12 +288,15 @@ class SimulationEngine:
         self,
         influenced: list[tuple[DistrictState, int]],
         event: MatchEvent,
+        *,
+        source: str = "autopilot",
     ) -> None:
         """Broadcast state update to WebSocket clients."""
         if not self.ws_manager:
             return
         payload = {
             "type": "update",
+            "source": source,
             "event": event.model_dump(),
             "districts": [
                 {**s.model_dump(), "distance_rank": rank}

@@ -62,7 +62,6 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   const timeoutsRef = useRef([]);
   const lastProcessedEventRef = useRef(null);
   const pendingDistrictsRef = useRef(new Set());
-  const updatePendingRef = useRef(false);
   const hoveredRef = useRef(null);
   const [tooltip, setTooltip] = useState(null); // {x, y, name, emotion, intensity}
   const [emojiBursts, setEmojiBursts] = useState([]); // [{id, x, y, emoji}]
@@ -70,6 +69,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   const lastEmojiEventRef = useRef(null);
   const canvasRef = useRef(null);
   const onEventReceivedRef = useRef(null);
+  const featureColorsRef = useRef(new Map());
 
   districtsRef.current = districts;
 
@@ -122,12 +122,10 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     ranked.forEach(({ feature }, index) => {
       const rank = index;
       const id_t = setTimeout(() => {
-        const savedColor = feature.properties.emotionColor;
-        feature.properties.emotionColor = 'hsl(24, 85%, 95%)';
-        scheduleMapUpdate();
+        const savedColor = featureColorsRef.current.get(feature.id) ?? 'hsl(24, 10%, 90%)';
+        map.setFeatureState({ source: 'toronto-districts', id: feature.id }, { color: 'hsl(24, 85%, 95%)' });
         setTimeout(() => {
-          feature.properties.emotionColor = savedColor;
-          scheduleMapUpdate();
+          map.setFeatureState({ source: 'toronto-districts', id: feature.id }, { color: savedColor });
         }, 400);
       }, rank * step);
       replayTimeouts.push(id_t);
@@ -142,21 +140,12 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     feature.properties.tension     = em.tension     ?? 0;
     feature.properties.pride       = em.pride       ?? 0;
     feature.properties.frustration = em.frustration ?? 0;
-    feature.properties.emotionColor = emotionToColor({ emotion: em });
+    const color = emotionToColor({ emotion: em });
+    feature.properties.emotionColor = color;
+    featureColorsRef.current.set(feature.id, color);
+    const map = mapRef.current;
+    if (map) map.setFeatureState({ source: 'toronto-districts', id: feature.id }, { color });
   }
-
-  const scheduleMapUpdate = () => {
-    if (updatePendingRef.current) return;
-    updatePendingRef.current = true;
-    requestAnimationFrame(() => {
-      const map = mapRef.current;
-      if (map) {
-        const src = map.getSource('toronto-districts');
-        if (src) src.setData(geoDataRef.current);
-      }
-      updatePendingRef.current = false;
-    });
-  };
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -179,8 +168,9 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     mapRef.current = map;
 
     map.on('load', () => {
-      // Initialize features with neutral color
-      geoDataRef.current.features.forEach(f => {
+      // Assign stable integer IDs (required for setFeatureState) and init neutral color
+      geoDataRef.current.features.forEach((f, idx) => {
+        f.id = idx + 1;
         f.properties.emotionColor = 'hsl(24, 10%, 90%)';
       });
 
@@ -189,13 +179,13 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         data: geoDataRef.current,
       });
 
-      // District fill — driven by emotion color, static opacity
+      // District fill — color via feature-state so Mapbox interpolates per-feature smoothly
       map.addLayer({
         id: 'district-fill',
         type: 'fill',
         source: 'toronto-districts',
         paint: {
-          'fill-color': ['get', 'emotionColor'],
+          'fill-color': ['coalesce', ['feature-state', 'color'], 'hsl(24, 10%, 90%)'],
           'fill-opacity': 0.42,
           'fill-color-transition': { duration: 700, delay: 0 },
         },
@@ -242,6 +232,15 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
           'text-halo-width': 1.5,
         },
       });
+
+      // Seed feature-state so transitions fire from the very first color change
+      geoDataRef.current.features.forEach(f => {
+        map.setFeatureState({ source: 'toronto-districts', id: f.id }, { color: 'hsl(24, 10%, 90%)' });
+      });
+
+      // Cache 2D context once — avoids getContext overhead every frame
+      const agentCanvas = canvasRef.current;
+      const ctx = agentCanvas ? agentCanvas.getContext('2d', { alpha: true, desynchronized: true }) : null;
 
       // ── TypedArray agent system ─────────────────────────────
       const N = 360;
@@ -387,23 +386,29 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
           }
           projectionDirty = false;
         }
-        const canvas = canvasRef.current;
-        if (canvas) {
-          const ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: false, desynchronized: true });
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (agentCanvas && ctx) {
+          ctx.clearRect(0, 0, agentCanvas.width, agentCanvas.height);
           const DOT = 4;
           ctx.fillStyle = '#cc0000';
-          redBucket.forEach(i => ctx.fillRect(px[i] - 2, py[i] - 2, DOT, DOT));
+          ctx.beginPath();
+          for (let k = 0; k < redBucket.length; k++) { const i = redBucket[k]; ctx.rect(px[i] - 2, py[i] - 2, DOT, DOT); }
+          ctx.fill();
           ctx.fillStyle = '#94a3b8';
-          greyBucket.forEach(i => ctx.fillRect(px[i] - 2, py[i] - 2, DOT, DOT));
+          ctx.beginPath();
+          for (let k = 0; k < greyBucket.length; k++) { const i = greyBucket[k]; ctx.rect(px[i] - 2, py[i] - 2, DOT, DOT); }
+          ctx.fill();
           ctx.fillStyle = '#1a56db';
-          blueBucket.forEach(i => ctx.fillRect(px[i] - 2, py[i] - 2, DOT, DOT));
+          ctx.beginPath();
+          for (let k = 0; k < blueBucket.length; k++) { const i = blueBucket[k]; ctx.rect(px[i] - 2, py[i] - 2, DOT, DOT); }
+          ctx.fill();
         }
         rafId = requestAnimationFrame(drawFrame);
       }
 
       rafId = requestAnimationFrame(drawFrame);
 
+      // Re-project dots whenever the map pans or zooms
+      map.on('move', () => { projectionDirty = true; });
       map.on('remove', () => cancelAnimationFrame(rafId));
 
       // Hover interaction
@@ -541,25 +546,19 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
           pendingDistrictsRef.current.delete(districtId);
           const feature = featureById[districtId];
           if (feature) syncFeature(feature, state);
-          scheduleMapUpdate();
         }, rank * stepMs);
         timeoutsRef.current.push(id);
       });
     } else {
-      let changed = false;
       entries.forEach(([districtId, state]) => {
         if (!pendingDistrictsRef.current.has(districtId)) {
           const feature = featureById[districtId];
           if (feature) {
             const color = emotionToColor({ emotion: state.emotion ?? {} });
-            if (feature.properties.emotionColor !== color) {
-              syncFeature(feature, state);
-              changed = true;
-            }
+            if (feature.properties.emotionColor !== color) syncFeature(feature, state);
           }
         }
       });
-      if (changed) scheduleMapUpdate();
     }
   }, [districts, lastEvent, stepMs]);
 

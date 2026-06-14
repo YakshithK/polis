@@ -28,7 +28,7 @@ export function useSimulation() {
       });
       if (msg.type === 'update') {
         setLastEvent(msg.event);
-        setEventLog(prev => [...prev, { ...msg.event, ts: Date.now() }].slice(-50));
+        setEventLog(prev => [...prev, { ...msg.event, source: msg.source ?? 'autopilot', ts: Date.now() }].slice(-50));
       }
     }
     if (msg.type === 'tick') {

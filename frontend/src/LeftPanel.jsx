@@ -2,12 +2,25 @@ import { useState, useRef, useEffect } from 'react';
 import MoodBar from './MoodBar';
 
 const EVENT_ICONS = {
-  goal:             '⚽',
-  red_card:         '🟥',
-  var_review:       '📺',
-  penalty_miss:     '😬',
-  elimination:      '💀',
-  championship_win: '🏆',
+  goal:                  '⚽',
+  red_card:              '🟥',
+  var_review:            '📺',
+  penalty_miss:          '😬',
+  elimination:           '💀',
+  championship_win:      '🏆',
+  street_party:          '🎉',
+  pub_crowd:             '🍺',
+  fan_gathering:         '👥',
+  city_buzz:             '🏙️',
+  neighbourhood_chatter: '💬',
+  fan_fight:             '⚡',
+  street_party_forming:  '🎊',
+};
+const SOURCE_BADGE = {
+  manual:    { label: 'YOU',  color: '#2563eb' },
+  natural:   { label: 'NL',   color: '#7c3aed' },
+  autopilot: { label: 'AUTO', color: '#64748b' },
+  organic:   { label: 'CITY', color: '#16a34a' },
 };
 const TEAM_LABEL = { canada: 'CAN', opponent: 'OPP' };
 
@@ -109,10 +122,18 @@ function EventsTab({ eventLog, onEventClick }) {
           >
             <span className="lp-event-icon">{EVENT_ICONS[ev.type] ?? '•'}</span>
             <span className="lp-event-min">{ev.minute}'</span>
-            <span className="lp-event-team">{TEAM_LABEL[ev.team] ?? ev.team}</span>
+            {ev.team && <span className="lp-event-team">{TEAM_LABEL[ev.team] ?? ev.team}</span>}
             <span className="lp-event-label">
               {ev.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
             </span>
+            {(() => {
+              const badge = SOURCE_BADGE[ev.source] ?? SOURCE_BADGE.autopilot;
+              return (
+                <span className="lp-event-source" style={{ background: badge.color }}>
+                  {badge.label}
+                </span>
+              );
+            })()}
           </div>
         ))
       )}

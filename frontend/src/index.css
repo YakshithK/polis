@@ -284,7 +284,18 @@ body {
 .lp-event-icon { flex-shrink: 0; }
 .lp-event-min  { font-family: var(--font-data); color: var(--ink-muted); flex-shrink: 0; }
 .lp-event-team { font-family: var(--font-data); color: var(--brand); flex-shrink: 0; font-size: 10px; }
-.lp-event-label { color: var(--ink-secondary); }
+.lp-event-label { color: var(--ink-secondary); flex: 1; }
+.lp-event-source {
+  flex-shrink: 0;
+  font-family: var(--font-data);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: auto;
+}
 
 /* ── Feed Panel (right side, always visible) ── */
 .feed-panel {
