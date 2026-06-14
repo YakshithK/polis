@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class EmotionState(BaseModel):
@@ -17,20 +17,9 @@ class EmotionState(BaseModel):
 
 
 class AlignmentState(BaseModel):
-    """Fan alignment breakdown for a district. Fields should sum to 100."""
+    """Community alignment breakdown for a district."""
 
-    canada_support: Annotated[float, Field(ge=0.0, le=100.0)] = 0.0
-    opponent_support: Annotated[float, Field(ge=0.0, le=100.0)] = 0.0
     neutral: Annotated[float, Field(ge=0.0, le=100.0)] = 100.0
-
-    @model_validator(mode="after")
-    def check_sum(self) -> "AlignmentState":
-        total = self.canada_support + self.opponent_support + self.neutral
-        if abs(total - 100.0) > 0.5:
-            raise ValueError(
-                f"AlignmentState fields must sum to 100, got {total:.2f}"
-            )
-        return self
 
 
 class ActivityState(BaseModel):

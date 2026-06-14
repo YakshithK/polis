@@ -23,7 +23,7 @@ class SimSession(BaseModel):
         description="Unique identifier for this simulation run",
     )
     scenario_id: str = Field(
-        default="worldcup_toronto_2026",
+        default="agentropolis_toronto",
         description="Which scenario configuration this session uses",
     )
     created_at: datetime = Field(

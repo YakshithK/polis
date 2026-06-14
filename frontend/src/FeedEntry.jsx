@@ -38,7 +38,7 @@ function formatAge(ts) {
 }
 
 export default function FeedEntry({ entry }) {
-  const { district, text, ts, character: wsCharacter } = entry;
+  const { district, text, ts, character: wsCharacter, citizen, archetype } = entry;
   const character = wsCharacter ?? CHARACTERS[district] ?? district;
   const color     = DISTRICT_COLORS[district] ?? '#3d7bff';
   const label     = district.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -47,10 +47,11 @@ export default function FeedEntry({ entry }) {
     <div className="feed-entry">
       <div className="feed-entry-header">
         <div className="feed-district-dot" style={{ background: color }} />
-        <span className="feed-author">{character} · {label}</span>
+        <span className="feed-author">{citizen ?? character} · {label}</span>
         {ts && <span className="feed-timestamp">{formatAge(ts)}</span>}
       </div>
       <div className="feed-text">"{text}"</div>
+      {archetype && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-muted)', marginTop: 4 }}>{archetype}</div>}
     </div>
   );
 }

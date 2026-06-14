@@ -11,12 +11,15 @@ export function useSimulation() {
   const [lastEvent, setLastEvent] = useState(null);
   const [autopilotStatus, setAutopilotStatus] = useState('idle');
   const [eventLog, setEventLog] = useState([]);
+  const [activityEntries, setActivityEntries] = useState([]);
+  const [activityByDistrict, setActivityByDistrict] = useState({});
   const [matchMinute, setMatchMinute] = useState(0);
   const [connectionError, setConnectionError] = useState(null);
   const wsRef = useRef(null);
   const sessionIdRef = useRef(null);
   const retryTimerRef = useRef(null);
   const mountedRef = useRef(true);
+  const seenEventKeysRef = useRef(new Set());
 
   const handleMessage = useCallback((e) => {
     const msg = JSON.parse(e.data);
@@ -27,6 +30,12 @@ export function useSimulation() {
         return next;
       });
       if (msg.type === 'update') {
+        // Deduplicate: same event type+minute within 3s means a duplicate broadcast
+        const dedupKey = `${msg.event.type}-${msg.event.minute}-${msg.source ?? ''}`;
+        if (seenEventKeysRef.current.has(dedupKey)) return;
+        seenEventKeysRef.current.add(dedupKey);
+        setTimeout(() => seenEventKeysRef.current.delete(dedupKey), 3000);
+
         setLastEvent(msg.event);
         setEventLog(prev => [...prev, { ...msg.event, source: msg.source ?? 'autopilot', ts: Date.now() }].slice(-50));
       }
@@ -42,6 +51,21 @@ export function useSimulation() {
     if (msg.type === 'feed') {
       setFeedEntries(prev => [msg, ...prev].slice(0, 50));
     }
+    if (msg.type === 'activity') {
+      setActivityByDistrict(msg.districts ?? {});
+      const entries = Object.entries(msg.districts ?? {}).flatMap(([district, payload]) => {
+        const archetype = payload?.archetype ?? '';
+        return (payload?.citizens ?? []).slice(0, 3).map(item => ({
+          type: 'activity',
+          district,
+          citizen: item.citizen,
+          text: item.activity,
+          archetype,
+          ts: Date.now(),
+        }));
+      });
+      setActivityEntries(prev => [...entries, ...prev].slice(0, 60));
+    }
     if (msg.type === 'autopilot') {
       setAutopilotStatus(msg.status);
       if (msg.status === 'running') setMatchMinute(0);
@@ -50,6 +74,14 @@ export function useSimulation() {
 
   const openWs = useCallback((sid) => {
     if (!mountedRef.current) return;
+    // Tear down the old socket before opening a new one — prevents duplicate
+    // message handlers when React StrictMode or reconnects create a second socket
+    const prev = wsRef.current;
+    if (prev) {
+      prev.onclose = null;   // suppress the reconnect timer
+      prev.onmessage = null; // stop duplicate event delivery immediately
+      if (prev.readyState < 2) prev.close();
+    }
     const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsHost = API_BASE.replace(/^https?:\/\//, '');
     const ws = new WebSocket(`${wsProto}//${wsHost}/ws/${sid}`);
@@ -145,5 +177,5 @@ export function useSimulation() {
     };
   }, []);
 
-  return { sessionId, districts, feedEntries, connected, connectionError, injectEvent, lastEvent, autopilotStatus, triggerAutopilot, eventLog, matchMinute, nlState, interpretation, submitNaturalEvent };
+  return { sessionId, districts, feedEntries, activityEntries, activityByDistrict, connected, connectionError, injectEvent, lastEvent, autopilotStatus, triggerAutopilot, eventLog, matchMinute, nlState, interpretation, submitNaturalEvent };
 }

@@ -1,10 +1,13 @@
 # Deterministic delta rules and decay math — implemented in Task 1.5
 
+import logging
 import math
 
 from backend.models.district import DistrictState
 from backend.models.event import MatchEvent
 from backend.services.scenario import ScenarioConfig
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Module-level constants
@@ -14,12 +17,31 @@ DECAY_FACTOR: float = 0.9
 BASELINE: float = 50.0
 
 EVENT_SOURCE: dict[str, str] = {
+    "transit_strike":   "downtown",
+    "heat_wave":        "downtown",
+    "festival":         "downtown",
+    "power_outage":     "downtown",
+    "major_layoffs":    "downtown",
+    "cultural_event":   "downtown",
+    "protest":          "downtown",
+    "street_fair":      "kensington",
     "goal":             "downtown",   # BMO Field / downtown core
     "red_card":         "downtown",
     "var_review":       "downtown",
     "penalty_miss":     "downtown",
     "elimination":      "downtown",
     "championship_win": "downtown",
+}
+
+CITY_EVENT_DELTAS: dict[str, dict[str, float]] = {
+    "transit_strike":   {"tension": 22.0, "frustration": 12.0, "social": -8.0, "mobility": -25.0},
+    "heat_wave":        {"tension": 18.0, "frustration": 10.0, "social": -4.0, "mobility": -10.0},
+    "festival":         {"excitement": 18.0, "pride": 8.0, "social": 15.0},
+    "power_outage":     {"tension": 20.0, "frustration": 8.0, "social": 10.0},
+    "major_layoffs":    {"frustration": 25.0, "tension": 14.0, "social": -6.0},
+    "cultural_event":   {"pride": 16.0, "excitement": 8.0, "social": 6.0},
+    "protest":          {"tension": 20.0, "excitement": 6.0, "social": 8.0},
+    "street_fair":      {"excitement": 12.0, "social": 16.0, "pride": 4.0},
 }
 
 
@@ -59,8 +81,7 @@ def compute_influence(
 def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0) -> None:
     """Apply deterministic delta rules to a district state in-place.
 
-    Deltas are weighted by district alignment fractions (canada_support /
-    opponent_support as fractions of 100) and scaled by event severity [0, 1].
+    Deltas are scaled by event severity [0, 1].
     All fields are clamped to [0, 100] after all deltas are applied.
     """
     # Custom effects from NL organic events bypass hardcoded rules
@@ -74,86 +95,40 @@ def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0)
         _clamp_state(state)
         return
 
-    s = event.severity                          # severity multiplier [0.0, 1.0]
-    ca = state.alignment.canada_support / 100.0
-    op = state.alignment.opponent_support / 100.0
+    s = event.severity
+
+    if event.type in CITY_EVENT_DELTAS:
+        deltas = CITY_EVENT_DELTAS[event.type]
+        for key, delta in deltas.items():
+            if key in {"social", "mobility"}:
+                current = getattr(state.activity, key)
+                setattr(state.activity, key, current + delta * s)
+            else:
+                current = getattr(state.emotion, key)
+                setattr(state.emotion, key, current + delta * s)
+        _clamp_state(state)
+        return
 
     ORGANIC_DELTAS = {
         "street_party":          {"excitement": 8.0,  "pride": 5.0,  "social": 10.0},
-        "pub_crowd":             {"excitement": 6.0,  "social": 12.0, "tension": 3.0},
-        "fan_gathering":         {"excitement": 10.0, "social": 8.0},
         "city_buzz":             {"excitement": 5.0,  "social": 6.0},
         "neighbourhood_chatter": {"social": 8.0,      "tension": -3.0},
-        "fan_fight":             {"tension": 12.0,    "social": 5.0,   "excitement": -2.0},
         "street_party_forming":  {"excitement": 15.0, "social": 10.0, "pride": 8.0},
+        "community_gathering":   {"pride": 6.0,       "social": 10.0, "excitement": 4.0},
+        "local_incident":        {"tension": 8.0,     "frustration": 5.0},
     }
 
     if event.type in ORGANIC_DELTAS:
         deltas = ORGANIC_DELTAS[event.type]
         factor = max(0.0, 1.0 - 0.15 * distance_rank) * s
-        if "excitement" in deltas:
-            state.emotion.excitement += deltas["excitement"] * factor
-        if "tension" in deltas:
-            state.emotion.tension += deltas["tension"] * factor
-        if "frustration" in deltas:
-            state.emotion.frustration += deltas["frustration"] * factor
-        if "pride" in deltas:
-            state.emotion.pride += deltas["pride"] * factor
-        if "social" in deltas:
-            state.activity.social += deltas["social"] * factor
-
-    elif event.type == "goal" and event.team == "canada":
-        state.emotion.excitement  += 30 * ca * s
-        state.emotion.pride       += 20 * ca * s
-        state.activity.social     += 15 * s
-        state.emotion.frustration += 10 * op * s
-
-    elif event.type == "goal" and event.team == "opponent":
-        state.emotion.excitement  += 30 * op * s
-        state.emotion.pride       += 20 * op * s
-        state.activity.social     += 15 * s
-        state.emotion.frustration += 10 * ca * s
-
-    elif event.type == "red_card" and event.team == "canada":
-        state.emotion.tension     += 25 * ca * s
-        state.emotion.frustration += 20 * ca * s
-
-    elif event.type == "red_card" and event.team == "opponent":
-        state.emotion.excitement  += 15 * ca * s
-        state.emotion.tension     += 10 * op * s
-
-    elif event.type == "var_review":
-        state.emotion.tension     += 15 * s
-        state.activity.social     += 10 * s
-
-    elif event.type == "penalty_miss" and event.team == "canada":
-        state.emotion.frustration += 25 * ca * s
-        state.emotion.tension     += 15 * ca * s
-
-    elif event.type == "penalty_miss" and event.team == "opponent":
-        state.emotion.excitement  += 15 * ca * s
-
-    elif event.type == "elimination" and event.team == "canada":
-        state.emotion.excitement  -= 40 * ca * s
-        state.emotion.frustration += 35 * ca * s
-        state.activity.social     += 20 * s   # grief-posting
-
-    elif event.type == "championship_win" and event.team == "canada":
-        state.emotion.excitement  += 50 * ca * s
-        state.emotion.pride       += 40 * ca * s
-        state.activity.social     += 30 * s
-
-    elif event.type == "elimination" and event.team == "opponent":
-        # Opponent is eliminated — Canada supporters celebrate
-        state.emotion.excitement += 40 * ca * s
-        state.emotion.pride      += 25 * ca * s
-        state.activity.social    += 20 * s
-
-    elif event.type == "championship_win" and event.team == "opponent":
-        # Opponent wins — Canada supporters are devastated
-        state.emotion.frustration += 45 * ca * s
-        state.emotion.excitement  -= 30 * ca * s
-        state.activity.social     += 15 * s  # grief-posting
+        for key, delta in deltas.items():
+            if key == "social":
+                state.activity.social += delta * factor
+            else:
+                current = getattr(state.emotion, key)
+                setattr(state.emotion, key, current + delta * factor)
+    else:
+        logger.warning("Unhandled event type '%s'; no delta applied.", event.type)
 
     # Clamp all fields to [0, 100] after applying deltas
     _clamp_state(state)

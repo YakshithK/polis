@@ -1,46 +1,47 @@
+import asyncio
 import json
 import logging
-import os
-
-from openai import AsyncOpenAI
 
 from backend.models.event import MatchEvent
+from backend.services.narrator import _get_client, _get_sem
 
 logger = logging.getLogger(__name__)
 
-INTERPRET_SYSTEM = """You are a World Cup match event interpreter for a Toronto city simulation.
-Map the user's text to a structured match event. Output ONLY valid JSON, no markdown.
+INTERPRET_SYSTEM = """You are a Toronto city event interpreter for a living city simulation.
+Map the user's text to a structured city event. Output ONLY valid JSON, no markdown.
 
-Standard types: goal, red_card, var_review, penalty_miss, elimination, championship_win
-For city/atmosphere events: use type "organic"
+Standard types: transit_strike, heat_wave, festival, power_outage, major_layoffs, cultural_event, protest, street_fair
+For neighborhood atmosphere events: use type "community_gathering" or "local_incident"
 
 Output schema:
 {
-  "type": "goal",
-  "team": "canada",
+    "type": "festival",
+    "team": null,
   "minute": 78,
   "severity": 0.85,
-  "description": "Canada scores a header",
+    "description": "A street festival pops up downtown",
   "organic_districts": null,
   "custom_effects": null
 }"""
 
 
 async def interpret_natural_event(text: str, current_minute: int = 1) -> dict:
-    key = os.getenv("HACKCLUB_API_KEY") or os.getenv("HACKCLUB_AI_KEY") or ""
-    client = AsyncOpenAI(api_key=key, base_url="https://ai.hackclub.com/proxy/v1")
+    client = _get_client()
 
     try:
-        response = await client.chat.completions.create(
-            model="google/gemini-2.5-flash-lite",
-            messages=[
-                {"role": "system", "content": INTERPRET_SYSTEM},
-                {"role": "user", "content": text},
-            ],
-            temperature=0.1,
-            max_tokens=200,
-            timeout=4.0,
-        )
+        async with _get_sem():
+            response = await asyncio.wait_for(
+                client.chat.completions.create(
+                    model="google/gemini-2.5-flash-lite",
+                    messages=[
+                        {"role": "system", "content": INTERPRET_SYSTEM},
+                        {"role": "user", "content": text},
+                    ],
+                    temperature=0.1,
+                    max_tokens=200,
+                ),
+                timeout=10.0,
+            )
         raw = response.choices[0].message.content.strip()
         data = json.loads(raw)
 
@@ -58,7 +59,7 @@ async def interpret_natural_event(text: str, current_minute: int = 1) -> dict:
     except Exception:
         logger.warning("NL interpretation failed, falling back to organic event")
         return {
-            "event": MatchEvent(type="organic", team=None, minute=current_minute, severity=0.5),
+            "event": MatchEvent(type="community_gathering", team=None, minute=current_minute, severity=0.5),
             "description": text,
             "custom_effects": None,
         }

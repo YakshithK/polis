@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 export default function SplashScreen({ onStart }) {
   const [hiding, setHiding] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [name, setName] = useState('Avery');
+  const [job, setJob] = useState('designer');
   const canvasRef = useRef(null);
   const dotsRef = useRef([]);
 
@@ -44,7 +46,7 @@ export default function SplashScreen({ onStart }) {
 
   const handleStart = () => {
     setHiding(true);
-    setTimeout(onStart, 500);
+    setTimeout(() => onStart?.({ name, job }), 500);
   };
 
   return (
@@ -56,13 +58,18 @@ export default function SplashScreen({ onStart }) {
       />
 
       <div className={`splash-body${visible ? ' splash-body-in' : ''}`}>
-        <div className="splash-eyebrow">World Cup 2026 · Toronto</div>
+        <div className="splash-eyebrow">Toronto · City Simulation</div>
 
         <h1 className="splash-name">
           <span className="splash-name-algo">Algo</span>polis
         </h1>
 
-        <p className="splash-line">The city reacts. Live.</p>
+        <p className="splash-line">The city reacts. You are part of it.</p>
+
+        <div style={{ display: 'grid', gap: 10, marginTop: 20, width: 'min(320px, 80vw)' }}>
+          <input className="nl-input" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" />
+          <input className="nl-input" value={job} onChange={e => setJob(e.target.value)} placeholder="Your job" />
+        </div>
 
         <button className="splash-btn" onClick={handleStart}>
           Start →

@@ -1,28 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 
 const EVENTS = [
-  { label: '⚽ CAN Goal',    type: 'goal',             team: 'canada',   color: '#f97316' },
-  { label: '⚽ OPP Goal',    type: 'goal',             team: 'opponent', color: '#1a56db' },
-  { label: '🟥 Red Card',    type: 'red_card',         team: 'canada',   color: '#dc2626' },
-  { label: '📺 VAR',         type: 'var_review',       team: 'canada',   color: '#9333ea' },
-  { label: '💀 Elim',        type: 'elimination',      team: 'canada',   color: '#0a0f1a' },
-  { label: '🏆 Win',         type: 'championship_win', team: 'canada',   color: '#d97706' },
+  { label: '🚇 TTC Delay',      type: 'transit_strike',  team: null },
+  { label: '🌡️ Heat Wave',      type: 'heat_wave',       team: null },
+  { label: '⚽ Canada Scores',  type: 'street_party',    team: null },
 ];
 
 const EVENT_ICONS = {
-  goal: '⚽', red_card: '🟥', var_review: '📺',
-  penalty_miss: '😬', elimination: '💀', championship_win: '🏆', organic: '✦',
+  transit_strike: '🚇', heat_wave: '🌡', festival: '🎉', power_outage: '⚡',
+  major_layoffs: '📉', cultural_event: '🎭', protest: '✊', street_fair: '🛍',
+  organic: '✦',
 };
 
 const PLACEHOLDERS = [
-  "Canada scores a header in the 78th minute…",
-  "Red card for Bosnia's midfielder…",
-  "Fans flooding the streets of Scarborough…",
-  "Power outage near BMO Field…",
-  "Street party breaking out in Kensington…",
+  "Transit strike starting at 6am tomorrow…",
+  "Street fair on Kensington Ave this weekend…",
+  "Heat wave hitting 38°C in Scarborough…",
+  "Power outage near downtown core…",
+  "Major tech layoffs announced in North York…",
+  "Festival starting in Little Italy tonight…",
 ];
 
-export default function ControlsBar({ onEvent, autopilotStatus, onAutopilot, strictness, onStrictness, nlState, interpretation, onNaturalEvent }) {
+export default memo(function ControlsBar({ onEvent, autopilotStatus, onAutopilot, strictness, onStrictness, nlState, interpretation, onNaturalEvent }) {
   const [text, setText] = useState('');
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [flashingBtn, setFlashingBtn] = useState(null);
@@ -109,4 +108,4 @@ export default function ControlsBar({ onEvent, autopilotStatus, onAutopilot, str
       </div>
     </div>
   );
-}
+});

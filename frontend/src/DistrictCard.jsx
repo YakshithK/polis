@@ -22,7 +22,6 @@ export default function DistrictCard({ info, districts, feedEntries, eventLog, o
 
   const state   = districts[info.id] ?? {};
   const emotion = state.emotion ?? {};
-  const support = Math.round(state.alignment?.canada_support ?? 60);
   const character = CHARACTERS[info.id] ?? info.name;
 
   // Last 2 feed entries for this district
@@ -40,18 +39,6 @@ export default function DistrictCard({ info, districts, feedEntries, eventLog, o
         <button className="card-close" onClick={onClose}>×</button>
       </div>
       <div className="card-body">
-        {/* Canada support */}
-        <div>
-          <div className="card-section-label">🇨🇦 Canada Support</div>
-          <div className="card-support-row">
-            <span className="card-support-label">Support</span>
-            <div className="card-support-bar">
-              <div className="card-support-fill" style={{ width: `${support}%` }} />
-            </div>
-            <span className="card-support-pct">{support}%</span>
-          </div>
-        </div>
-
         {/* Mood */}
         <div>
           <div className="card-section-label">Current Mood</div>
@@ -80,9 +67,9 @@ export default function DistrictCard({ info, districts, feedEntries, eventLog, o
             <div className="card-section-label">Recent Events</div>
             {recentEvents.map((ev, i) => (
               <div key={i} className="card-event-row">
-                <span>{ev.type === 'goal' ? '⚽' : ev.type === 'red_card' ? '🟥' : '📺'}</span>
+                <span>{ev.type === 'transit_strike' ? '🚇' : ev.type === 'heat_wave' ? '🌡️' : ev.type === 'festival' ? '🎪' : '🏙️'}</span>
                 <span className="card-event-min">{ev.minute}'</span>
-                <span>{ev.team === 'canada' ? 'CAN' : 'OPP'} {ev.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
+                <span>{ev.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
               </div>
             ))}
           </div>

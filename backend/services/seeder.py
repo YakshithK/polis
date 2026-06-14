@@ -30,11 +30,7 @@ async def seed_districts(db: AsyncIOMotorDatabase, scenario: ScenarioConfig) -> 
                 frustration=50.0,
                 pride=50.0,
             ),
-            alignment=AlignmentState(
-                canada_support=alignment_data["canada_support"],
-                opponent_support=alignment_data["opponent_support"],
-                neutral=alignment_data["neutral"],
-            ),
+            alignment=AlignmentState(),
             activity=ActivityState(
                 social=50.0,
                 mobility=50.0,

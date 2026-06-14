@@ -14,7 +14,7 @@ from backend.services.websocket_manager import ws_manager
 
 router = APIRouter(prefix="/session", tags=["session"])
 
-DEFAULT_SCENARIO_ID = "worldcup_toronto_2026"
+DEFAULT_SCENARIO_ID = "agentropolis_toronto"
 
 # In-memory store of active engines (session_id → SimulationEngine)
 _engines: dict[str, SimulationEngine] = {}
@@ -29,6 +29,7 @@ async def stop_all_engines() -> None:
 
 @router.post("/", response_model=SimSession, status_code=201)
 async def create_session(db: AsyncIOMotorDatabase = Depends(get_db)):
+    await stop_all_engines()
     scenario = load_scenario(DEFAULT_SCENARIO_ID)
     await seed_districts(db, scenario)
     session = SimSession(scenario_id=scenario.scenario_id)

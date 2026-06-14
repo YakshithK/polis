@@ -6,29 +6,35 @@ import random
 import time
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import UpdateOne
 
 from backend.models.district import DistrictState
 from backend.models.event import MatchEvent
 from backend.services.scenario import ScenarioConfig
 from backend.services.rules import apply_event, compute_influence, decay_state, _clamp_state
-from backend.services.narrator import generate_feed_text, pick_key_districts
+from backend.services.narrator import (
+    generate_citizen_activity,
+    generate_district_archetype,
+    generate_feed_text,
+    pick_key_districts,
+)
 from backend.services.director import generate_timeline
-from backend.services.characters import pick_character
+from backend.services.characters import iter_characters, trim_voice
 
 _ORGANIC_EVENTS = [
     ("street_party",          {"excitement": 8,  "pride": 5,  "social": 10}),
-    ("pub_crowd",             {"excitement": 6,  "social": 12, "tension": 3}),
-    ("fan_gathering",         {"excitement": 10, "social": 8}),
     ("city_buzz",             {"excitement": 5,  "social": 6}),
     ("neighbourhood_chatter", {"social": 8,      "tension": -3}),
+    ("community_gathering",   {"pride": 6,       "social": 10, "excitement": 4}),
+    ("local_incident",        {"tension": 8,     "frustration": 5}),
 ]
 
 _ORGANIC_FEED = {
     "street_party":          ["Whole block is out tonight.", "Street's alive — can't even walk fast.", "People just pouring out."],
-    "pub_crowd":             ["Can't get a seat in here.", "Every screen in the pub is on.", "This city does not go quiet."],
-    "fan_gathering":         ["Word is spreading fast.", "You can feel something building.", "Nobody's going home yet."],
     "city_buzz":             ["Toronto's awake tonight.", "Energy out there is real.", "Something in the air."],
     "neighbourhood_chatter": ["Group chat is on fire.", "Everyone's got an opinion.", "Checking in on the block."],
+    "community_gathering":   ["People gathering in the square.", "Neighbours are outside talking.", "Community's coming together."],
+    "local_incident":        ["Something's going on nearby.", "Block's a bit tense right now.", "Stay aware out there."],
 }
 
 logger = logging.getLogger(__name__)
@@ -49,6 +55,7 @@ class SimulationEngine:
         self.simulation_clock = 0
         self._lock = asyncio.Lock()
         self._last_manual_event_time = 0.0
+        self._last_event_type: str | None = None
 
     async def start(self) -> None:
         """Load district states from DB and start the background processing loops."""
@@ -162,6 +169,7 @@ class SimulationEngine:
 
     async def _process_event(self, event: MatchEvent, *, source: str = "autopilot") -> None:
         """Apply deterministic delta rules to all districts, then broadcast."""
+        self._last_event_type = event.type
         if source == "manual":
             self._last_manual_event_time = time.time()
             logger.info("Manual event: %s. Suppressing organic events for 30s.", event.type)
@@ -211,6 +219,9 @@ class SimulationEngine:
                             event.type, event.minute,
                         )
                         await self.inject_event(event, source="autopilot")
+
+                if self.simulation_clock > 0 and self.simulation_clock % 30 == 0:
+                    asyncio.create_task(self._run_agent_batch())
                 
                 # Roll for organic events (4% chance per tick) if not suppressed
                 if self.simulation_clock < 90 and random.random() < 0.04:
@@ -236,25 +247,23 @@ class SimulationEngine:
         """Trigger a random minor organic event in a random district."""
         event_types = [
             "street_party",
-            "pub_crowd",
-            "fan_gathering",
             "city_buzz",
             "neighbourhood_chatter",
-            "fan_fight",
-            "street_party_forming"
+            "street_party_forming",
+            "community_gathering",
+            "local_incident",
         ]
         evt_type = random.choice(event_types)
         districts = self.scenario.districts
         if not districts:
             return
         source_district = random.choice(districts)
-        
-        team = random.choice(["canada", "opponent"])
+
         severity = round(random.uniform(0.3, 0.7), 2)
         
         event = MatchEvent(
             type=evt_type,
-            team=team,
+            team=None,
             minute=self.simulation_clock,
             severity=severity,
             source_district=source_district
@@ -343,6 +352,102 @@ class SimulationEngine:
                 "text": text,
                 "ts": ts,
             })
+
+    async def _run_agent_batch(self) -> None:
+        """Generate district archetypes, citizen activities, and rolling memories."""
+        try:
+            states = await self.get_all_states()
+            if not states:
+                return
+
+            archetype_tasks = [
+                generate_district_archetype(
+                    state,
+                    last_event_type=self._last_event_type,
+                    scenario_context=self.scenario.director_context,
+                )
+                for state in states
+            ]
+            archetype_results = await asyncio.gather(*archetype_tasks, return_exceptions=True)
+            archetype_map: dict[str, str] = {}
+            for state, result in zip(states, archetype_results):
+                if isinstance(result, Exception):
+                    archetype_map[state.district_id] = f"People in {state.district_id.replace('_', ' ').title()} are moving through the city in their own rhythm."
+                else:
+                    archetype_map[state.district_id] = str(result)
+
+            roster = random.sample(iter_characters(), min(8, len(iter_characters())))
+            names = [person["name"] for person in roster]
+            memory_docs = await self.db["citizen_memories"].find({
+                "scenario_id": self.scenario.scenario_id,
+                "citizen_name": {"$in": names},
+            }).to_list(length=None)
+            memory_map: dict[str, list[str]] = {}
+            for doc in memory_docs:
+                citizen_name = doc.get("citizen_name", "")
+                memories = doc.get("memories", []) or []
+                memory_map[citizen_name] = [entry.get("activity", "") for entry in memories][-3:]
+
+            citizen_tasks = []
+            citizen_index: list[tuple[str, str]] = []
+            for citizen in roster:
+                district_id = citizen["district_id"]
+                name = citizen["name"]
+                citizen_index.append((district_id, name))
+                citizen_tasks.append(
+                    generate_citizen_activity(
+                        citizen_name=name,
+                        voice=trim_voice(citizen["voice"], 2),
+                        district_id=district_id,
+                        archetype=archetype_map.get(district_id, ""),
+                        memories=memory_map.get(name, []),
+                        last_event_type=self._last_event_type,
+                    )
+                )
+
+            citizen_results = await asyncio.gather(*citizen_tasks, return_exceptions=True)
+            district_payloads: dict[str, dict] = {
+                state.district_id: {"archetype": archetype_map.get(state.district_id, ""), "citizens": []}
+                for state in states
+            }
+            memory_ops = []
+            for (district_id, citizen_name), result in zip(citizen_index, citizen_results):
+                activity = result if isinstance(result, str) else f"{citizen_name} is caught up in the chaos like everyone else"
+                district_payloads[district_id]["citizens"].append({"citizen": citizen_name, "activity": activity})
+                memory_ops.append(
+                    UpdateOne(
+                        {"scenario_id": self.scenario.scenario_id, "citizen_name": citizen_name},
+                        {
+                            "$setOnInsert": {
+                                "scenario_id": self.scenario.scenario_id,
+                                "citizen_name": citizen_name,
+                                "district_id": district_id,
+                            },
+                            "$push": {
+                                "memories": {
+                                    "$each": [{
+                                        "tick": self.simulation_clock,
+                                        "activity": activity,
+                                        "event_context": self._last_event_type or "none",
+                                    }],
+                                    "$slice": -10,
+                                }
+                            },
+                        },
+                        upsert=True,
+                    )
+                )
+
+            if memory_ops:
+                try:
+                    await self.db["citizen_memories"].bulk_write(memory_ops, ordered=False)
+                except Exception:
+                    logger.exception("Failed writing citizen memories batch")
+
+            if self.ws_manager:
+                await self.ws_manager.broadcast({"type": "activity", "districts": district_payloads})
+        except Exception:
+            logger.exception("Error in agent batch generation")
 
     async def _trigger_ambient_feed_posts(self, states: list[DistrictState]) -> None:
         """Pick 2-3 districts and broadcast ambient posts reacting to general city vibe."""

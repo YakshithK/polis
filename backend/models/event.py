@@ -1,26 +1,47 @@
-"""Pydantic models for match events."""
+"""Pydantic models for simulation events."""
 
 from __future__ import annotations
+
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
-class MatchEvent(BaseModel):
-    """A discrete match event that triggers state changes in city districts."""
+CityEventType = Literal[
+    "transit_strike",
+    "heat_wave",
+    "festival",
+    "power_outage",
+    "major_layoffs",
+    "cultural_event",
+    "protest",
+    "street_fair",
+    "street_party",
+    "city_buzz",
+    "neighbourhood_chatter",
+    "street_party_forming",
+    "local_incident",
+    "community_gathering",
+    "organic",
+]
 
-    type: str = Field(
+
+class MatchEvent(BaseModel):
+    """A discrete city event that triggers state changes in districts."""
+
+    type: CityEventType = Field(
         ...,
-        description="Event category, e.g. 'goal', 'red_card', 'penalty', 'final_whistle'",
+        description="Event category, e.g. 'transit_strike', 'festival', 'power_outage'",
     )
     team: str | None = Field(
         default=None,
-        description="Team identifier, e.g. 'canada', 'opponent'. None for organic events.",
+        description="Unused — kept for API compatibility. Always null.",
     )
     minute: int = Field(
         ...,
         ge=0,
-        le=120,
-        description="Match minute (0–120 incl. extra time)",
+        le=1440,
+        description="Simulation minute within the 24-hour day",
     )
     severity: float = Field(
         default=1.0, ge=0.0, le=1.0, description="Impact magnitude 0–1"

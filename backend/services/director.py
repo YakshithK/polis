@@ -9,19 +9,19 @@ from backend.models.event import MatchEvent
 logger = logging.getLogger(__name__)
 
 _FALLBACK_TIMELINE = [
-    {"minute": 8,  "type": "goal",             "team": "canada",   "severity": 0.9},
-    {"minute": 23, "type": "var_review",        "team": "canada",   "severity": 0.5},
-    {"minute": 37, "type": "red_card",          "team": "opponent", "severity": 0.7},
-    {"minute": 54, "type": "goal",              "team": "opponent", "severity": 0.85},
-    {"minute": 71, "type": "penalty_miss",      "team": "canada",   "severity": 0.6},
-    {"minute": 88, "type": "goal",              "team": "canada",   "severity": 1.0},
+    {"minute": 8,  "type": "festival",         "team": None, "severity": 0.9},
+    {"minute": 23, "type": "protest",          "team": None, "severity": 0.5},
+    {"minute": 37, "type": "power_outage",     "team": None, "severity": 0.7},
+    {"minute": 54, "type": "heat_wave",        "team": None, "severity": 0.85},
+    {"minute": 71, "type": "major_layoffs",    "team": None, "severity": 0.6},
+    {"minute": 88, "type": "cultural_event",   "team": None, "severity": 1.0},
 ]
 
 _SYSTEM = (
-    "You are a FIFA World Cup 2026 match director. "
+    "You are a Toronto city event director for a living city simulation. "
     "Output ONLY a valid JSON array — no prose, no markdown, no code fences. "
-    "Each element: {\"minute\": int 1-90, \"type\": one of [goal, red_card, var_review, penalty_miss, elimination, championship_win], "
-    "\"team\": one of [canada, opponent], \"severity\": float 0.0-1.0}. "
+    "Each element: {\"minute\": int 1-90, \"type\": one of [transit_strike, heat_wave, festival, power_outage, major_layoffs, cultural_event, protest, street_fair], "
+    "\"team\": null or a side label, \"severity\": float 0.0-1.0}. "
     "Events must be chronologically ordered. Generate 6-8 events total. "
     "Never schedule events at minute 45 (halftime) or minute 90 (full time)."
 )
@@ -37,9 +37,9 @@ async def generate_timeline(context: str, expressive: bool = False) -> list[Matc
     client = AsyncOpenAI(api_key=key, base_url="https://ai.hackclub.com/proxy/v1")
 
     style = (
-        "Create a dramatic, unpredictable match with surprising swings — red cards, late goals, high severity events."
+        "Create a dramatic, unpredictable city day with strong swings — strikes, outages, protests, and celebrations."
         if expressive else
-        "Create a realistic, balanced match progression with gradual momentum shifts."
+        "Create a realistic, balanced city event progression with gradual momentum shifts."
     )
 
     try:

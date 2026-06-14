@@ -7,34 +7,73 @@ mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 function emotionToColor(state) {
   const { excitement, tension, pride, frustration } = state.emotion;
-  const dominant = Math.max(excitement, tension, pride, frustration);
-  const intensity = dominant / 100;
+  const BASELINE = 50;
+  const excD = excitement  - BASELINE;
+  const tenD = tension     - BASELINE;
+  const priD = pride       - BASELINE;
+  const fruD = frustration - BASELINE;
+  const maxD = Math.max(excD, tenD, priD, fruD);
+
+  if (maxD < 4) return 'hsl(220, 8%, 82%)'; // near-baseline → neutral grey
+
+  const intensity = Math.min(maxD / 45, 1.0);
   let h = 24, s = 85;
-  if (dominant === excitement)        { h = 24;  s = 85; }
-  else if (dominant === tension)      { h = 280; s = 75; }
-  else if (dominant === pride)        { h = 217; s = 80; }
-  else if (dominant === frustration)  { h = 0;   s = 78; }
-  const l = 90 - (intensity * 45);
+  if      (maxD === excD) { h = 24;  s = 85; }
+  else if (maxD === tenD) { h = 280; s = 75; }
+  else if (maxD === priD) { h = 217; s = 80; }
+  else                    { h = 0;   s = 78; }
+  const l = 82 - intensity * 38;
   return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
-const BMO_FIELD = [-79.4186, 43.6332];
-const EVENT_SOURCE = {
-  goal: 'downtown',
-  red_card: 'downtown',
-  var_review: 'downtown',
-  penalty_miss: 'downtown',
-  elimination: 'downtown',
-  championship_win: 'downtown',
-};
+const NATHAN_PHILLIPS = [-79.383, 43.653]; // city gathering point for festivals
 
 const EVENT_EMOJIS = {
-  goal:             ['⚽', '🎉', '🇨🇦', '🔥'],
-  red_card:         ['🟥', '😱', '❗'],
-  var_review:       ['📺', '🤔'],
-  penalty_miss:     ['😬', '😩'],
-  elimination:      ['💀', '😢'],
-  championship_win: ['🏆', '🎊', '🇨🇦'],
+  transit_strike:  ['🚇', '😤', '⏰'],
+  heat_wave:       ['🌡️', '😰', '🥵'],
+  festival:        ['🎪', '🎉', '🎶'],
+  power_outage:    ['⚡', '🕯️', '😱'],
+  major_layoffs:   ['📉', '😢', '💼'],
+  cultural_event:  ['🎭', '🎨', '✨'],
+  protest:         ['✊', '📢', '🪧'],
+  street_fair:     ['🎠', '🍦', '🎈'],
+  local_incident:  ['🚨', '😬'],
+  community_gathering: ['👥', '💬'],
+};
+
+// Major Toronto road corridors as [lon, lat] waypoints
+const TORONTO_ROADS = [
+  [[-79.388,43.641],[-79.388,43.650],[-79.388,43.665],[-79.388,43.680],[-79.388,43.700],[-79.388,43.730],[-79.388,43.760],[-79.388,43.795]], // Yonge St N-S
+  [[-79.520,43.664],[-79.480,43.664],[-79.440,43.664],[-79.400,43.668],[-79.370,43.672],[-79.340,43.678],[-79.310,43.685]], // Bloor/Danforth E-W
+  [[-79.550,43.705],[-79.500,43.705],[-79.460,43.705],[-79.420,43.705],[-79.390,43.705],[-79.360,43.705],[-79.330,43.705]], // Eglinton Ave E-W
+  [[-79.550,43.775],[-79.500,43.775],[-79.460,43.775],[-79.420,43.775],[-79.390,43.775],[-79.350,43.775],[-79.300,43.775],[-79.260,43.775]], // Sheppard Ave E-W
+  [[-79.550,43.808],[-79.500,43.808],[-79.460,43.808],[-79.420,43.808],[-79.385,43.808],[-79.350,43.808],[-79.300,43.808],[-79.250,43.808]], // Finch Ave E-W
+  [[-79.550,43.733],[-79.500,43.733],[-79.460,43.733],[-79.420,43.733],[-79.390,43.733],[-79.360,43.733],[-79.330,43.733]], // Lawrence Ave E-W
+  [[-79.490,43.648],[-79.450,43.648],[-79.420,43.648],[-79.400,43.648],[-79.380,43.650],[-79.360,43.650]], // Queen St E-W
+  [[-79.430,43.643],[-79.410,43.644],[-79.390,43.645],[-79.370,43.646],[-79.350,43.648]], // King St E-W
+  [[-79.403,43.640],[-79.403,43.650],[-79.403,43.662],[-79.403,43.673],[-79.403,43.685]], // Spadina N-S
+  [[-79.414,43.640],[-79.414,43.653],[-79.414,43.665],[-79.414,43.678],[-79.414,43.695],[-79.414,43.710]], // Bathurst N-S
+  [[-79.431,43.640],[-79.431,43.653],[-79.431,43.665],[-79.431,43.680],[-79.431,43.700],[-79.431,43.720]], // Dufferin N-S
+  [[-79.330,43.658],[-79.330,43.680],[-79.330,43.705],[-79.330,43.730],[-79.330,43.755]], // Don Valley N-S
+  [[-79.260,43.715],[-79.260,43.740],[-79.260,43.765],[-79.260,43.790],[-79.260,43.815]], // Kennedy Rd Scarborough N-S
+  [[-79.190,43.750],[-79.190,43.775],[-79.190,43.800],[-79.190,43.825]], // Morningside Scarborough N-S
+  [[-79.540,43.640],[-79.540,43.660],[-79.540,43.685],[-79.540,43.710],[-79.540,43.730]], // Kipling/Islington Etobicoke N-S
+  [[-79.580,43.700],[-79.550,43.700],[-79.520,43.700],[-79.490,43.700]], // Dixon Rd Etobicoke E-W
+];
+
+const DISTRICT_ROAD_MAP = {
+  downtown:        [0, 6, 7, 8, 9],
+  yorkville:       [0, 1, 8, 9],
+  midtown:         [0, 2, 9, 10],
+  kensington:      [8, 9, 6],
+  west_end:        [10, 1, 6],
+  little_portugal: [10, 6],
+  little_italy:    [8, 9, 1],
+  rosedale:        [0, 1],
+  east_york:       [11, 1],
+  north_york:      [0, 3, 5, 2],
+  etobicoke:       [14, 15, 3],
+  scarborough:     [12, 13, 3, 4],
 };
 
 
@@ -55,7 +94,7 @@ function replayStepMs(severity) {
   return 120;
 }
 
-export default function MapView({ districts, stepMs = 120, lastEvent, simulationStarted, onFlyoverComplete, onDistrictClick, replayEvent }) {
+export default function MapView({ districts, stepMs = 120, lastEvent, simulationStarted, onDistrictClick, replayEvent, userAgent }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const geoDataRef = useRef(JSON.parse(JSON.stringify(DISTRICTS_GEOJSON)));
@@ -101,7 +140,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded() || !event) return;
 
-    const sourceId = event.source_district || EVENT_SOURCE[event.type] || 'downtown';
+    const sourceId = event.source_district || 'downtown';
     const sourceFeature = geoDataRef.current.features.find(
       f => f.properties.district_id === sourceId,
     );
@@ -155,7 +194,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [-79.38, 43.82],
       zoom: 9,
-      pitch: 0,
+      pitch: 45,
       bearing: 0,
       attributionControl: false,
       dragRotate: false,
@@ -233,6 +272,43 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         },
       });
 
+      if (map.getSource('composite')) {
+        map.addLayer({
+          id: '3d-buildings',
+          source: 'composite',
+          'source-layer': 'building',
+          filter: ['==', 'extrude', 'true'],
+          type: 'fill-extrusion',
+          minzoom: 15,
+          paint: {
+            'fill-extrusion-color': '#101826',
+            'fill-extrusion-height': ['get', 'height'],
+            'fill-extrusion-base': ['get', 'min_height'],
+            'fill-extrusion-opacity': 0.35,
+          },
+        }, 'waterway-label');
+      }
+
+      map.addSource('user-agent-dot', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [],
+        },
+      });
+
+      map.addLayer({
+        id: 'user-agent-dot',
+        type: 'circle',
+        source: 'user-agent-dot',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#ffffff',
+          'circle-stroke-color': '#050810',
+          'circle-stroke-width': 2,
+        },
+      });
+
       // Seed feature-state so transitions fire from the very first color change
       geoDataRef.current.features.forEach(f => {
         map.setFeatureState({ source: 'toronto-districts', id: f.id }, { color: 'hsl(24, 10%, 90%)' });
@@ -244,24 +320,52 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
 
       // ── TypedArray agent system ─────────────────────────────
       const N = 360;
-      const aLat = new Float32Array(N);
-      const aLon = new Float32Array(N);
-      const tLat = new Float32Array(N);
-      const tLon = new Float32Array(N);
-      const aSpeed = new Float32Array(N);
-      const aState = new Uint8Array(N);  // 0=MILLING 1=CELEBRATING 2=FLEEING 3=TENSED 4=FROZEN
-      const aDist = new Uint8Array(N);
+      const aLat     = new Float32Array(N);
+      const aLon     = new Float32Array(N);
+      const tLat     = new Float32Array(N);
+      const tLon     = new Float32Array(N);
+      const aSpeed   = new Float32Array(N);
+      const aState   = new Uint8Array(N);   // 0=MILLING 1=CELEBRATING 2=FLEEING 3=TENSED 4=FROZEN
+      const aDist    = new Uint8Array(N);
       const frozenFor = new Int16Array(N);
-      const px = new Float32Array(N);
-      const py = new Float32Array(N);
-      const cooldown = new Uint16Array(N);
-      const redBucket = [], greyBucket = [], blueBucket = [];
-      const bboxes = [];  // { minLon, maxLon, minLat, maxLat, cLon, cLat }
+      const px       = new Float32Array(N);
+      const py       = new Float32Array(N);
+      const aRoadIdx  = new Int8Array(N).fill(-1);
+      const aWpIdx    = new Int8Array(N);
+      const aWpDir    = new Int8Array(N).fill(1);
+      const dotBucket = [];
+      const bboxes   = [];
 
-      const RED_T = 0.65, BLUE_T = 0.35;
       const MILLING = 0, CELEBRATING = 1, FLEEING = 2, TENSED = 3, FROZEN = 4;
 
       const features = geoDataRef.current.features;
+
+      function pickRoadTarget(i) {
+        const distId = features[aDist[i]]?.properties?.district_id;
+        const roads = DISTRICT_ROAD_MAP[distId] ?? [];
+        if (!roads.length) return;
+        const roadIdx = roads[Math.floor(Math.random() * roads.length)];
+        const road = TORONTO_ROADS[roadIdx];
+        if (!road?.length) return;
+        aRoadIdx[i] = roadIdx;
+        aWpIdx[i] = Math.floor(Math.random() * road.length);
+        aWpDir[i] = Math.random() < 0.5 ? 1 : -1;
+        tLon[i] = road[aWpIdx[i]][0];
+        tLat[i] = road[aWpIdx[i]][1];
+      }
+
+      function advanceWaypoint(i) {
+        const road = TORONTO_ROADS[aRoadIdx[i]];
+        if (!road) { pickRoadTarget(i); return; }
+        let next = aWpIdx[i] + aWpDir[i];
+        if (next >= road.length) { aWpDir[i] = -1; next = road.length - 2; }
+        if (next < 0)            { aWpDir[i] =  1; next = 1; }
+        if (next < 0 || next >= road.length) { pickRoadTarget(i); return; }
+        aWpIdx[i] = next;
+        tLon[i] = road[next][0];
+        tLat[i] = road[next][1];
+      }
+
       features.forEach((feature, dIdx) => {
         const coords = feature.geometry.coordinates[0];
         let mnLo = Infinity, mxLo = -Infinity, mnLa = Infinity, mxLa = -Infinity;
@@ -273,142 +377,130 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         });
         bboxes.push({ minLon: mnLo, maxLon: mxLo, minLat: mnLa, maxLat: mxLa, cLon: sLo / coords.length, cLat: sLa / coords.length });
 
-        const distId = feature.properties.district_id;
-        const dState = Object.values(districtsRef.current).find(d => d.district_id === distId);
-        const support = (dState?.alignment?.canada_support ?? 50) / 100;
-
         for (let j = 0; j < 30; j++) {
           const i = dIdx * 30 + j;
           aLat[i] = mnLa + Math.random() * (mxLa - mnLa);
           aLon[i] = mnLo + Math.random() * (mxLo - mnLo);
           tLat[i] = aLat[i]; tLon[i] = aLon[i];
-          aSpeed[i] = 0.025 + Math.random() * 0.015;
+          aSpeed[i] = 0.06 + Math.random() * 0.04;
           aState[i] = MILLING;
           aDist[i] = dIdx;
           frozenFor[i] = 0;
-          cooldown[i] = Math.floor(Math.random() * 120);
-          if (support > RED_T) redBucket.push(i);
-          else if (support < BLUE_T) blueBucket.push(i);
-          else greyBucket.push(i);
+          dotBucket.push(i);
+          pickRoadTarget(i);
         }
       });
-
-      function pickNewTarget(i) {
-        const b = bboxes[aDist[i]]; if (!b) return;
-        tLon[i] = b.minLon + Math.random() * (b.maxLon - b.minLon);
-        tLat[i] = b.minLat + Math.random() * (b.maxLat - b.minLat);
-      }
 
       function updateAgentPositions() {
         for (let i = 0; i < N; i++) {
           const s = aState[i];
           if (s === FROZEN) { if (--frozenFor[i] <= 0) aState[i] = MILLING; continue; }
-          let spd = aSpeed[i];
-          if (s === CELEBRATING) spd *= 3.5;
-          else if (s === FLEEING) spd *= 2.5;
-          else if (s === TENSED) spd *= 0.4;
 
-          if (--cooldown[i] <= 0) {
+          let spd = aSpeed[i];
+          if (s === CELEBRATING) spd *= 3.0;
+          else if (s === FLEEING) spd *= 2.5;
+          else if (s === TENSED)  spd *= 0.3;
+
+          if (s === CELEBRATING) {
+            tLon[i] = NATHAN_PHILLIPS[0] + (Math.random() - 0.5) * 0.012;
+            tLat[i] = NATHAN_PHILLIPS[1] + (Math.random() - 0.5) * 0.012;
+          } else if (s === FLEEING) {
             const b = bboxes[aDist[i]];
-            if (s === CELEBRATING) {
-              tLon[i] = BMO_FIELD[0]; tLat[i] = BMO_FIELD[1]; cooldown[i] = 90;
-            } else if (s === FLEEING && b) {
+            if (b) {
               const dx = aLon[i] - b.cLon, dy = aLat[i] - b.cLat;
               const len = Math.hypot(dx, dy) || 0.0001;
-              tLon[i] = aLon[i] + (dx / len) * 0.02;
-              tLat[i] = aLat[i] + (dy / len) * 0.02;
-              cooldown[i] = 30;
-            } else if (s === TENSED) {
-              tLon[i] = aLon[i] + (Math.random() - 0.5) * 0.003;
-              tLat[i] = aLat[i] + (Math.random() - 0.5) * 0.003;
-              cooldown[i] = 15;
-            } else {
-              pickNewTarget(i); cooldown[i] = 60 + Math.floor(Math.random() * 120);
+              tLon[i] = aLon[i] + (dx / len) * 0.015;
+              tLat[i] = aLat[i] + (dy / len) * 0.015;
+            }
+          } else if (s === TENSED) {
+            tLon[i] = aLon[i] + (Math.random() - 0.5) * 0.001;
+            tLat[i] = aLat[i] + (Math.random() - 0.5) * 0.001;
+          } else {
+            // MILLING — follow road waypoints
+            const dx = tLon[i] - aLon[i];
+            const dy = tLat[i] - aLat[i];
+            if (Math.abs(dx) < 0.0008 && Math.abs(dy) < 0.0008) {
+              advanceWaypoint(i);
             }
           }
 
           aLon[i] += (tLon[i] - aLon[i]) * spd;
           aLat[i] += (tLat[i] - aLat[i]) * spd;
-
-          // Clamp to district for milling/tensed
-          if (s === MILLING || s === TENSED) {
-            const b = bboxes[aDist[i]];
-            if (b) {
-              aLon[i] = Math.max(b.minLon, Math.min(b.maxLon, aLon[i]));
-              aLat[i] = Math.max(b.minLat, Math.min(b.maxLat, aLat[i]));
-            }
-          }
         }
       }
 
       function onEventReceived(event) {
         if (!event) return;
-        if (event.type === 'var_review' || event.type === 'penalty_miss') {
-          for (let i = 0; i < N; i++) { aState[i] = TENSED; cooldown[i] = 20; }
-          setTimeout(() => { for (let i = 0; i < N; i++) if (aState[i] === TENSED) aState[i] = MILLING; }, 4000);
-        } else if (event.type === 'red_card') {
+        const t = event.type;
+        if (t === 'power_outage') {
           for (let i = 0; i < N; i++) { aState[i] = FROZEN; frozenFor[i] = 90; }
-        } else if (event.type === 'elimination') {
-          for (let i = 0; i < N; i++) { aState[i] = FLEEING; cooldown[i] = 0; }
-          setTimeout(() => { for (let i = 0; i < N; i++) if (aState[i] === FLEEING) aState[i] = MILLING; }, 5000);
-        } else if (event.type === 'championship_win') {
-          for (let i = 0; i < N; i++) { aState[i] = CELEBRATING; cooldown[i] = 0; }
-        } else if (event.type === 'goal' && event.team === 'canada') {
-          redBucket.forEach(i => { aState[i] = CELEBRATING; cooldown[i] = 0; });
-          greyBucket.forEach(i => { aState[i] = CELEBRATING; cooldown[i] = 0; });
-          setTimeout(() => {
-            redBucket.forEach(i => { if (aState[i] === CELEBRATING) aState[i] = MILLING; });
-            greyBucket.forEach(i => { if (aState[i] === CELEBRATING) aState[i] = MILLING; });
-          }, 6000);
-        } else if (event.type === 'goal' && event.team === 'opponent') {
-          blueBucket.forEach(i => { aState[i] = CELEBRATING; cooldown[i] = 0; });
-          setTimeout(() => { blueBucket.forEach(i => { if (aState[i] === CELEBRATING) aState[i] = MILLING; }); }, 6000);
+        } else if (t === 'transit_strike' || t === 'major_layoffs') {
+          for (let i = 0; i < N; i++) { aState[i] = FLEEING; }
+          setTimeout(() => { for (let i = 0; i < N; i++) if (aState[i] === FLEEING) { aState[i] = MILLING; pickRoadTarget(i); } }, 5000);
+        } else if (t === 'heat_wave') {
+          for (let i = 0; i < N; i++) { aState[i] = TENSED; }
+          setTimeout(() => { for (let i = 0; i < N; i++) if (aState[i] === TENSED) { aState[i] = MILLING; pickRoadTarget(i); } }, 6000);
+        } else if (t === 'festival' || t === 'street_fair' || t === 'cultural_event') {
+          for (let i = 0; i < N; i++) { aState[i] = CELEBRATING; }
+          setTimeout(() => { for (let i = 0; i < N; i++) if (aState[i] === CELEBRATING) { aState[i] = MILLING; pickRoadTarget(i); } }, 7000);
+        } else if (t === 'protest') {
+          for (let i = 0; i < N; i++) { aState[i] = TENSED; }
+          setTimeout(() => { for (let i = 0; i < N; i++) if (aState[i] === TENSED) { aState[i] = MILLING; pickRoadTarget(i); } }, 8000);
         }
       }
 
       onEventReceivedRef.current = onEventReceived;
 
-      // RAF draw loop — 30Hz position, 60Hz render
+      // RAF draw loop — 15Hz position, on-demand render
       let lastPositionUpdate = 0;
       let projectionDirty = true;
+      let renderDirty = true;
       let rafId;
+      const _projCoord = [0, 0]; // reuse to avoid 360 allocs/frame
 
       function drawFrame(timestamp) {
-        if (timestamp - lastPositionUpdate > 33) {
+        if (timestamp - lastPositionUpdate > 66) { // 15Hz positions — enough for slow city movement
           updateAgentPositions();
           projectionDirty = true;
           lastPositionUpdate = timestamp;
         }
         if (projectionDirty) {
           for (let i = 0; i < N; i++) {
-            const pt = map.project([aLon[i], aLat[i]]);
+            _projCoord[0] = aLon[i]; _projCoord[1] = aLat[i];
+            const pt = map.project(_projCoord);
             px[i] = pt.x; py[i] = pt.y;
           }
           projectionDirty = false;
+          renderDirty = true;
         }
-        if (agentCanvas && ctx) {
+        if (renderDirty && agentCanvas && ctx) {
           ctx.clearRect(0, 0, agentCanvas.width, agentCanvas.height);
           const DOT = 4;
-          ctx.fillStyle = '#cc0000';
+          ctx.fillStyle = '#f97316';
           ctx.beginPath();
-          for (let k = 0; k < redBucket.length; k++) { const i = redBucket[k]; ctx.rect(px[i] - 2, py[i] - 2, DOT, DOT); }
+          for (let k = 0; k < dotBucket.length; k++) { const i = dotBucket[k]; ctx.rect(px[i] - 2, py[i] - 2, DOT, DOT); }
           ctx.fill();
-          ctx.fillStyle = '#94a3b8';
-          ctx.beginPath();
-          for (let k = 0; k < greyBucket.length; k++) { const i = greyBucket[k]; ctx.rect(px[i] - 2, py[i] - 2, DOT, DOT); }
-          ctx.fill();
-          ctx.fillStyle = '#1a56db';
-          ctx.beginPath();
-          for (let k = 0; k < blueBucket.length; k++) { const i = blueBucket[k]; ctx.rect(px[i] - 2, py[i] - 2, DOT, DOT); }
-          ctx.fill();
+          renderDirty = false;
+        }
+        const userSource = map.getSource('user-agent-dot');
+        if (userSource && userAgent) {
+          const center = map.getCenter();
+          userSource.setData({
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [center.lng, center.lat] },
+              properties: { name: userAgent.name, job: userAgent.job },
+            }],
+          });
         }
         rafId = requestAnimationFrame(drawFrame);
       }
 
       rafId = requestAnimationFrame(drawFrame);
 
-      // Re-project dots whenever the map pans or zooms
-      map.on('move', () => { projectionDirty = true; });
+      // Re-project + redraw whenever the map pans or zooms
+      map.on('move', () => { projectionDirty = true; renderDirty = true; });
       map.on('remove', () => cancelAnimationFrame(rafId));
 
       // Hover interaction
@@ -478,16 +570,15 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     map.flyTo({
       center: [-79.38, 43.68],
       zoom: 11.5,
-      pitch: 0,
+      pitch: 45,
       bearing: 0,
-      duration: 3000,
-      curve: 1.5,
+      duration: 1500,
+      curve: 1.2,
       essential: true,
     });
 
-    const timer = setTimeout(() => { if (onFlyoverComplete) onFlyoverComplete(); }, 3000);
-    return () => clearTimeout(timer);
-  }, [simulationStarted, onFlyoverComplete]);
+    return () => {};
+  }, [simulationStarted]);
 
   // Camera flyTo on high-severity events
   useEffect(() => {
@@ -501,7 +592,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     map.flyTo({
       center: [f.geometry.coordinates[0][0][0], f.geometry.coordinates[0][0][1]],
       zoom: 12.5,
-      pitch: 0,
+      pitch: 45,
       bearing: 0,
       duration: 1600,
       essential: true,
@@ -517,7 +608,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   // Wave animation on new events; baseline sync otherwise
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map || !map.isStyleLoaded() || !map.getSource('toronto-districts')) return;
 
     const entries = Object.entries(districts);
     if (entries.length === 0) return;
@@ -591,7 +682,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     lastEmojiEventRef.current = key;
 
     const emojis = EVENT_EMOJIS[lastEvent.type] ?? ['✨', '🔥'];
-    const districtId = lastEvent.source_district || EVENT_SOURCE[lastEvent.type] || 'downtown';
+    const districtId = lastEvent.source_district || 'downtown';
     spawnEmojiBurst(districtId, emojis);
   }, [lastEvent]);
 

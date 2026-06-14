@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Algopolis",
-    description="Real-time city emotion simulation for World Cup 2026 Toronto.",
+    description="Real-time city emotion simulation for Toronto.",
     version="0.1.0",
     lifespan=lifespan,
 )
