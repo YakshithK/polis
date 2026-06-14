@@ -22,8 +22,14 @@ _SYSTEM = (
     "Output ONLY a valid JSON array — no prose, no markdown, no code fences. "
     "Each element: {\"minute\": int 1-90, \"type\": one of [goal, red_card, var_review, penalty_miss, elimination, championship_win], "
     "\"team\": one of [canada, opponent], \"severity\": float 0.0-1.0}. "
-    "Events must be chronologically ordered. Generate 6-8 events total."
+    "Events must be chronologically ordered. Generate 6-8 events total. "
+    "Never schedule events at minute 45 (halftime) or minute 90 (full time)."
 )
+
+
+def _filter_halftime_minutes(events: list[MatchEvent]) -> list[MatchEvent]:
+    """Drop events on blocked match-clock minutes."""
+    return [e for e in events if e.minute not in (45, 90)]
 
 
 async def generate_timeline(context: str, expressive: bool = False) -> list[MatchEvent]:
@@ -54,10 +60,10 @@ async def generate_timeline(context: str, expressive: bool = False) -> list[Matc
             if raw.startswith("json"):
                 raw = raw[4:]
         events_data = json.loads(raw)
-        events = [MatchEvent(**e) for e in events_data]
+        events = _filter_halftime_minutes([MatchEvent(**e) for e in events_data])
         events.sort(key=lambda e: e.minute)
         logger.info("Director generated %d events (%s)", len(events), "expressive" if expressive else "conservative")
         return events
     except Exception as exc:
         logger.warning("Director AI failed, using fallback timeline: %s", exc)
-        return [MatchEvent(**e) for e in _FALLBACK_TIMELINE]
+        return _filter_halftime_minutes([MatchEvent(**e) for e in _FALLBACK_TIMELINE])
