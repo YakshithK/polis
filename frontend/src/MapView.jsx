@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { DISTRICTS_GEOJSON } from './districts';
+import { DISTRICT_COLORS } from './FeedEntry';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -161,10 +162,10 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     ranked.forEach(({ feature }, index) => {
       const rank = index;
       const id_t = setTimeout(() => {
-        const savedColor = featureColorsRef.current.get(feature.id) ?? 'hsl(24, 10%, 90%)';
-        map.setFeatureState({ source: 'toronto-districts', id: feature.id }, { color: 'hsl(24, 85%, 95%)' });
+        const savedColor = featureColorsRef.current.get(feature.id) ?? feature.properties.districtColor ?? 'hsl(24, 10%, 90%)';
+        map.setFeatureState({ source: 'toronto-districts', id: feature.id }, { flashColor: 'hsl(24, 85%, 95%)' });
         setTimeout(() => {
-          map.setFeatureState({ source: 'toronto-districts', id: feature.id }, { color: savedColor });
+          map.setFeatureState({ source: 'toronto-districts', id: feature.id }, { flashColor: savedColor });
         }, 400);
       }, rank * step);
       replayTimeouts.push(id_t);
@@ -179,11 +180,6 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     feature.properties.tension     = em.tension     ?? 0;
     feature.properties.pride       = em.pride       ?? 0;
     feature.properties.frustration = em.frustration ?? 0;
-    const color = emotionToColor({ emotion: em });
-    feature.properties.emotionColor = color;
-    featureColorsRef.current.set(feature.id, color);
-    const map = mapRef.current;
-    if (map) map.setFeatureState({ source: 'toronto-districts', id: feature.id }, { color });
   }
 
   useEffect(() => {
@@ -210,7 +206,9 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
       // Assign stable integer IDs (required for setFeatureState) and init neutral color
       geoDataRef.current.features.forEach((f, idx) => {
         f.id = idx + 1;
-        f.properties.emotionColor = 'hsl(24, 10%, 90%)';
+        f.properties.districtColor = DISTRICT_COLORS[f.properties.district_id] ?? 'hsl(24, 10%, 90%)';
+        f.properties.flashColor = f.properties.districtColor;
+        featureColorsRef.current.set(f.id, f.properties.districtColor);
       });
 
       map.addSource('toronto-districts', {
@@ -224,7 +222,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         type: 'fill',
         source: 'toronto-districts',
         paint: {
-          'fill-color': ['coalesce', ['feature-state', 'color'], 'hsl(24, 10%, 90%)'],
+          'fill-color': ['coalesce', ['feature-state', 'flashColor'], ['get', 'districtColor'], 'hsl(24, 10%, 90%)'],
           'fill-opacity': 0.42,
           'fill-color-transition': { duration: 700, delay: 0 },
         },
@@ -311,7 +309,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
 
       // Seed feature-state so transitions fire from the very first color change
       geoDataRef.current.features.forEach(f => {
-        map.setFeatureState({ source: 'toronto-districts', id: f.id }, { color: 'hsl(24, 10%, 90%)' });
+        map.setFeatureState({ source: 'toronto-districts', id: f.id }, { flashColor: f.properties.districtColor });
       });
 
       // Cache 2D context once — avoids getContext overhead every frame
@@ -599,7 +597,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     });
 
     const returnTimer = setTimeout(() => {
-      map.flyTo({ center: [-79.38, 43.68], zoom: 11.5, pitch: 0, bearing: 0, duration: 2000 });
+      map.flyTo({ center: [-79.38, 43.68], zoom: 11.5, pitch: 45, bearing: 0, duration: 2000 });
     }, 5000);
 
     return () => clearTimeout(returnTimer);

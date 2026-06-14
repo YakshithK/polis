@@ -32,10 +32,10 @@ export default function DistrictCard({ info, districts, feedEntries, eventLog, o
   return (
     <div
       className="district-card"
-      style={{ left: pos.left, top: pos.top }}
+      style={{ left: pos.left, top: pos.top, borderColor: DISTRICT_COLORS[info.id] ?? 'rgba(255,255,255,0.15)' }}
     >
       <div className="card-header">
-        <span className="card-title">{info.name}</span>
+        <span className="card-title" style={{ color: DISTRICT_COLORS[info.id] ?? 'inherit' }}>{info.name}</span>
         <button className="card-close" onClick={onClose}>×</button>
       </div>
       <div className="card-body">
