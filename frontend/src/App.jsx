@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import MapView from './MapView';
 import Scorebar from './Scorebar';
-import CityStatsPanel from './CityStatsPanel';
-import LiveFeedPanel from './LiveFeedPanel';
-import EventLogBar from './EventLogBar';
+import LeftPanel from './LeftPanel';
 import ControlsBar from './ControlsBar';
 import DistrictCard from './DistrictCard';
 import SplashScreen from './SplashScreen';
@@ -18,7 +16,6 @@ export default function App() {
 
   const [simulationStarted, setSimulationStarted] = useState(false);
   const [flyoverComplete,   setFlyoverComplete]   = useState(false);
-  const [feedVisible,       setFeedVisible]       = useState(true);
   const [strictness,        setStrictness]        = useState('conservative');
   const [score,             setScore]             = useState({ canada: 0, opponent: 0 });
   const [panelsVisible,     setPanelsVisible]     = useState(false);
@@ -135,32 +132,17 @@ export default function App() {
             autopilotStatus={autopilotStatus}
           />
 
-          {/* Left: City Stats */}
-          <CityStatsPanel districts={districts} />
-          <div className="city-stats-nations panel-reveal" style={{ animationDelay: '0.2s' }}>
-            48 nations &middot; 3M people &middot; 12 neighbourhoods
-          </div>
+          {/* Left: tabbed panel (City Pulse / Live Feed / Events) */}
+          <LeftPanel
+            districts={districts}
+            feedEntries={feedEntries}
+            connected={connected}
+            eventLog={eventLog}
+            onEventClick={handleEventLogClick}
+          />
 
-
-          {/* Right: Live Feed or pill */}
-          {feedVisible ? (
-            <LiveFeedPanel
-              feedEntries={feedEntries}
-              connected={connected}
-              onClose={() => setFeedVisible(false)}
-            />
-          ) : (
-            <button
-              className="feed-pill glass"
-              onClick={() => setFeedVisible(true)}
-            >
-              {feedEntries[0]?.text ? `💬 "${feedEntries[0].text.slice(0, 40)}…"` : '💬 Live Feed'}
-            </button>
-          )}
-
-          {/* Bottom: Event log + Controls stacked */}
+          {/* Bottom center: Controls */}
           <div className="bottom-panel panel-reveal" style={{ animationDelay: '0.3s' }}>
-            <EventLogBar eventLog={eventLog} onEventClick={handleEventLogClick} />
             <ControlsBar
               onEvent={injectEvent}
               autopilotStatus={autopilotStatus}
