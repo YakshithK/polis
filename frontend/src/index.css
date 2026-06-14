@@ -88,9 +88,9 @@ body {
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
-  width: 380px;
+  width: 480px;
   z-index: 10;
-  padding: 10px 20px 8px;
+  padding: 8px 14px 6px;
   transition: border-color 0.4s ease, box-shadow 0.4s ease;
 }
 
@@ -109,7 +109,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 6px;
 }
 
 .scorebar-wordmark {
@@ -119,13 +119,13 @@ body {
   letter-spacing: 0.2em;
   color: var(--text-muted);
   white-space: nowrap;
-  flex: 0 0 88px;
+  flex: 0 0 72px;
 }
 
 .scorebar-center {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex: 1;
   justify-content: center;
   min-width: 0;
@@ -134,10 +134,9 @@ body {
 .scorebar-team {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
 }
 
-.scorebar-flag { font-size: 16px; }
 
 .scorebar-name {
   font-family: var(--font-data);
@@ -149,13 +148,14 @@ body {
 
 .scorebar-score {
   font-family: var(--font-data);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 400;
   color: var(--text-primary);
   letter-spacing: 0.04em;
-  min-width: 60px;
+  min-width: 48px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .scorebar-clock {
@@ -164,7 +164,7 @@ body {
   color: var(--accent);
   font-weight: 700;
   white-space: nowrap;
-  flex: 0 0 88px;
+  flex: 0 0 76px;
   text-align: right;
 }
 

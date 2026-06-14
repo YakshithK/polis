@@ -15,14 +15,12 @@ export default function Scorebar({ score, matchMinute, autopilotActive, autopilo
 
         <div className="scorebar-center">
           <div className="scorebar-team">
-            <span className="scorebar-flag">🇨🇦</span>
             <span className="scorebar-name">CAN</span>
           </div>
           <span className="scorebar-score">
             {score.canada} — {score.opponent}
           </span>
-          <div className="scorebar-team" style={{ flexDirection: 'row-reverse' }}>
-            <span className="scorebar-flag">🇧🇦</span>
+          <div className="scorebar-team">
             <span className="scorebar-name">BIH</span>
           </div>
         </div>
