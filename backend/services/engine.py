@@ -39,7 +39,7 @@ class SimulationEngine:
         self.db = db
         self.scenario = scenario
         self.ws_manager = ws_manager
-        self.event_queue: asyncio.Queue[MatchEvent] = asyncio.Queue()
+        self.event_queue: asyncio.Queue[tuple[MatchEvent, str]] = asyncio.Queue()
         self._running = False
         self._task: asyncio.Task | None = None
         self._tick_task: asyncio.Task | None = None
@@ -48,6 +48,7 @@ class SimulationEngine:
         self._autopilot_active = False
         self.simulation_clock = 0
         self._lock = asyncio.Lock()
+        self._last_manual_event_time = 0.0
 
     async def start(self) -> None:
         """Load district states from DB and start the background processing loops."""
@@ -126,9 +127,13 @@ class SimulationEngine:
             self._autopilot_active = False
             await self.ws_manager.broadcast({"type": "autopilot", "status": "idle"})
 
-    async def inject_event(self, event: MatchEvent) -> None:
-        """Enqueue an event for processing."""
-        await self.event_queue.put(event)
+    async def inject_event(self, event: MatchEvent, *, source: str = "autopilot") -> None:
+        """Enqueue an event for processing.
+
+        source: 'manual' (UI buttons), 'autopilot' (director timeline), or 'organic' (tick roll).
+        Only manual injections suppress organic events for 30s.
+        """
+        await self.event_queue.put((event, source))
 
     async def get_all_states(self) -> list[DistrictState]:
         """Return current district states from DB."""
@@ -139,21 +144,28 @@ class SimulationEngine:
         """Main event loop: dequeue → apply rules → broadcast."""
         while self._running:
             try:
-                event = await self.event_queue.get()
+                event, source = await self.event_queue.get()
             except asyncio.CancelledError:
                 break
             except Exception:
                 continue
             try:
-                logger.info("Processing event: %s for %s at minute %s", event.type, event.team, event.minute)
-                await self._process_event(event)
+                logger.info(
+                    "Processing event: %s for %s at minute %s (source=%s)",
+                    event.type, event.team, event.minute, source,
+                )
+                await self._process_event(event, source=source)
             except Exception:
                 logger.exception("Unhandled error processing event %s — skipping", event.type)
             finally:
                 self.event_queue.task_done()
 
-    async def _process_event(self, event: MatchEvent) -> None:
+    async def _process_event(self, event: MatchEvent, *, source: str = "autopilot") -> None:
         """Apply deterministic delta rules to all districts, then broadcast."""
+        if source == "manual":
+            self._last_manual_event_time = time.time()
+            logger.info("Manual event: %s. Suppressing organic events for 30s.", event.type)
+
         async with self._lock:
             states = await self.get_all_states()
             influenced = compute_influence(event, states, self.scenario)
@@ -190,16 +202,30 @@ class SimulationEngine:
                         _clamp_state(state)
                         await self._save_state(state)
                 
-                # Check for autopilot timeline events
-                if self._autopilot_active:
-                    current_events = [e for e in self._autopilot_timeline if e.minute == self.simulation_clock]
+                # Check for autopilot timeline events (skip halftime/fulltime minutes)
+                if self._autopilot_active and self.simulation_clock not in (45, 90):
+                    current_events = [
+                        e for e in self._autopilot_timeline
+                        if e.minute == self.simulation_clock
+                    ]
                     for event in current_events:
-                        logger.info("Autopilot injecting scheduled event: %s at minute %d", event.type, event.minute)
-                        await self.inject_event(event)
+                        logger.info(
+                            "Autopilot injecting scheduled event: %s at minute %d",
+                            event.type, event.minute,
+                        )
+                        await self.inject_event(event, source="autopilot")
                 
-                # Roll for organic events (4% chance per tick)
+                # Roll for organic events (4% chance per tick) if not suppressed
                 if self.simulation_clock < 90 and random.random() < 0.04:
-                    await self._trigger_random_organic_event()
+                    if time.time() - self._last_manual_event_time > 30.0:
+                        await self._trigger_random_organic_event()
+                    else:
+                        logger.info("Organic event suppressed (30s cooldown active)")
+                
+                # Roll for ambient feed posts every 5 seconds (15% chance)
+                if self.simulation_clock > 0 and self.simulation_clock % 5 == 0:
+                    if random.random() < 0.15:
+                        asyncio.create_task(self._trigger_ambient_feed_posts(states))
                 
                 # Broadcast tick (decay/breathing/clock)
                 await self._broadcast_tick(states)
@@ -237,7 +263,7 @@ class SimulationEngine:
             source_district=source_district
         )
         logger.info("Triggering organic event: %s at %s at minute %d", evt_type, source_district, self.simulation_clock)
-        await self.inject_event(event)
+        await self.inject_event(event, source="organic")
 
     async def _save_state(self, state: DistrictState) -> None:
         """Persist a district state to MongoDB."""
@@ -303,3 +329,30 @@ class SimulationEngine:
                 "text": text,
                 "ts": ts,
             })
+
+    async def _trigger_ambient_feed_posts(self, states: list[DistrictState]) -> None:
+        """Pick 2-3 districts and broadcast ambient posts reacting to general city vibe."""
+        if not self.ws_manager:
+            return
+        count = min(len(states), random.randint(2, 3))
+        selected = random.sample(states, count)
+        
+        from backend.services.narrator import generate_ambient_post
+        
+        tasks = [generate_ambient_post(s, self.simulation_clock) for s in selected]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        ts = int(time.time())
+        for state, result in zip(selected, results):
+            if isinstance(result, tuple):
+                text, character = result
+            else:
+                text = f"The vibe in {state.district_id.replace('_', ' ').title()} is intense right now."
+                character = None
+            await self.ws_manager.broadcast({
+                "type": "feed",
+                "district": state.district_id,
+                "character": character,
+                "text": text,
+                "ts": ts,
+            })
+

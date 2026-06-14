@@ -58,7 +58,7 @@ async def inject_event(
     engine = _engines.get(session_id)
     if not engine:
         raise HTTPException(status_code=404, detail="Session not found")
-    await engine.inject_event(event)
+    await engine.inject_event(event, source="manual")
     return {"status": "queued", "event": event.model_dump()}
 
 
