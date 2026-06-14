@@ -128,20 +128,22 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   const districtsRef = useRef(districts);
   const agentAnimRef = useRef(null);
   const lastEmojiEventRef = useRef(null);
+  const canvasRef = useRef(null);
 
   districtsRef.current = districts;
 
-  function updateAgentDotsSource() {
+  function drawAgentCanvas() {
+    const canvas = canvasRef.current;
     const map = mapRef.current;
-    if (!map) return;
-    const src = map.getSource('agent-dots');
-    if (!src) return;
-    src.setData({
-      type: 'FeatureCollection',
-      features: agentsRef.current.map(a => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [a.x, a.y] },
-      })),
+    if (!canvas || !map || !map.isStyleLoaded()) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    agentsRef.current.forEach(a => {
+      const { x, y } = map.project([a.x, a.y]);
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
     });
   }
 
@@ -391,31 +393,6 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
       });
       agentsRef.current = agents;
 
-      // Add agent dots source and circle layer
-      map.addSource('agent-dots', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: agents.map(a => ({
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: [a.x, a.y] }
-          }))
-        }
-      });
-
-      map.addLayer({
-        id: 'agent-dots-layer',
-        type: 'circle',
-        source: 'agent-dots',
-        paint: {
-          'circle-radius': 3.5,
-          'circle-color': '#ffffff',
-          'circle-opacity': 0.65,
-          'circle-stroke-width': 0.75,
-          'circle-stroke-color': '#050810',
-        }
-      });
-
       // Hover interaction
       map.on('mousemove', 'district-fill', (e) => {
         if (!e.features.length) return;
@@ -573,13 +550,27 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     }
   }, [districts, lastEvent, stepMs]);
 
-  // Agent dot Brownian motion + event-triggered drift
+  // Keep canvas pixel size matched to map container
+  useEffect(() => {
+    const container = mapContainer.current;
+    const canvas = canvasRef.current;
+    if (!container || !canvas) return;
+    const sync = () => {
+      canvas.width  = container.offsetWidth;
+      canvas.height = container.offsetHeight;
+    };
+    sync();
+    const obs = new ResizeObserver(sync);
+    obs.observe(container);
+    return () => obs.disconnect();
+  }, []);
+
+  // Agent dot Brownian motion — draws directly to Canvas overlay (no Mapbox setData)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     let running = true;
-    let frameSkip = 0;
     const tick = (now) => {
       if (!running) return;
       const agents = agentsRef.current;
@@ -615,15 +606,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
           }
           clampAgent(agent);
         });
-        // Push to Mapbox at ~20fps (every 3rd rAF frame) to reduce
-        // allocation pressure: 720 new GeoJSON objects per setData call
-        // at 60fps was creating 43k short-lived objects/s and continuous
-        // WebGL re-uploads. 20fps is imperceptible for dot jitter.
-        frameSkip++;
-        if (frameSkip >= 3) {
-          frameSkip = 0;
-          updateAgentDotsSource();
-        }
+        drawAgentCanvas();
       }
       agentAnimRef.current = requestAnimationFrame(tick);
     };
@@ -687,6 +670,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div id="map" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
+      <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
       <div className="emoji-burst-container">
         {emojiBursts.map(p => (
           <span
