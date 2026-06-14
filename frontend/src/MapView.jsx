@@ -42,6 +42,21 @@ const EVENT_EMOJIS = {
   community_gathering: ['👥', '💬'],
 };
 
+const DISTRICT_DOT_COLORS = {
+  downtown:        '#f97316', // orange   – energetic hub
+  yorkville:       '#a855f7', // purple   – upscale
+  midtown:         '#3b82f6', // blue     – professional
+  kensington:      '#22c55e', // green    – bohemian
+  west_end:        '#ec4899', // pink     – artsy
+  little_portugal: '#f59e0b', // amber    – warm community
+  little_italy:    '#ef4444', // red      – passionate
+  rosedale:        '#818cf8', // lavender – refined
+  east_york:       '#14b8a6', // teal     – local pride
+  north_york:      '#06b6d4', // cyan     – suburban
+  etobicoke:       '#84cc16', // lime     – community
+  scarborough:     '#fb923c', // deep orange – diverse/loud
+};
+
 // Major Toronto road corridors as [lon, lat] waypoints
 const TORONTO_ROADS = [
   [[-79.388,43.641],[-79.388,43.650],[-79.388,43.665],[-79.388,43.680],[-79.388,43.700],[-79.388,43.730],[-79.388,43.760],[-79.388,43.795]], // Yonge St N-S
@@ -345,21 +360,23 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
 
       // ── TypedArray agent system ─────────────────────────────
       const N = 360;
-      const aLat     = new Float32Array(N);
-      const aLon     = new Float32Array(N);
-      const tLat     = new Float32Array(N);
-      const tLon     = new Float32Array(N);
-      const aSpeed   = new Float32Array(N);
-      const aState   = new Uint8Array(N);   // 0=MILLING 1=CELEBRATING 2=FLEEING 3=TENSED 4=FROZEN
-      const aDist    = new Uint8Array(N);
-      const frozenFor = new Int16Array(N);
-      const px       = new Float32Array(N);
-      const py       = new Float32Array(N);
-      const aRoadIdx  = new Int8Array(N).fill(-1);
-      const aWpIdx    = new Int8Array(N);
-      const aWpDir    = new Int8Array(N).fill(1);
-      const dotBucket = [];
-      const bboxes   = [];
+      const aLat       = new Float32Array(N);
+      const aLon       = new Float32Array(N);
+      const tLat       = new Float32Array(N);
+      const tLon       = new Float32Array(N);
+      const aSpeed     = new Float32Array(N);
+      const aState     = new Uint8Array(N);    // 0=MILLING 1=CELEBRATING 2=FLEEING 3=TENSED 4=FROZEN
+      const aDist      = new Uint8Array(N);
+      const frozenFor  = new Int16Array(N);
+      const px         = new Float32Array(N);
+      const py         = new Float32Array(N);
+      const aRoadIdx   = new Int8Array(N).fill(-1);
+      const aWpIdx     = new Int8Array(N);
+      const aWpDir     = new Int8Array(N).fill(1);
+      // personality: 0=COMMUTER(fast/small) 1=LOCAL(medium) 2=HUSTLER(big/fast) 3=CHILL(slow/small)
+      const aPersonality = new Uint8Array(N);
+      const aDotSize     = new Float32Array(N);
+      const bboxes     = [];
 
       const MILLING = 0, CELEBRATING = 1, FLEEING = 2, TENSED = 3, FROZEN = 4;
 
@@ -407,11 +424,16 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
           aLat[i] = mnLa + Math.random() * (mxLa - mnLa);
           aLon[i] = mnLo + Math.random() * (mxLo - mnLo);
           tLat[i] = aLat[i]; tLon[i] = aLon[i];
-          aSpeed[i] = 0.06 + Math.random() * 0.04;
+          // Personality buckets: 0-9 COMMUTER, 10-17 LOCAL, 18-24 HUSTLER, 25-29 CHILL
+          const p = j < 10 ? 0 : j < 18 ? 1 : j < 25 ? 2 : 3;
+          aPersonality[i] = p;
+          if      (p === 0) { aSpeed[i] = 0.10 + Math.random() * 0.04; aDotSize[i] = 2.5; } // COMMUTER
+          else if (p === 1) { aSpeed[i] = 0.05 + Math.random() * 0.03; aDotSize[i] = 4.0; } // LOCAL
+          else if (p === 2) { aSpeed[i] = 0.09 + Math.random() * 0.03; aDotSize[i] = 5.0; } // HUSTLER
+          else              { aSpeed[i] = 0.03 + Math.random() * 0.02; aDotSize[i] = 3.0; } // CHILL
           aState[i] = MILLING;
           aDist[i] = dIdx;
           frozenFor[i] = 0;
-          dotBucket.push(i);
           pickRoadTarget(i);
         }
       });
@@ -500,11 +522,21 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         }
         if (renderDirty && agentCanvas && ctx) {
           ctx.clearRect(0, 0, agentCanvas.width, agentCanvas.height);
-          const DOT = 4;
-          ctx.fillStyle = '#f97316';
-          ctx.beginPath();
-          for (let k = 0; k < dotBucket.length; k++) { const i = dotBucket[k]; ctx.rect(px[i] - 2, py[i] - 2, DOT, DOT); }
-          ctx.fill();
+          // Render 12 district batches — each with its personality color
+          for (let d = 0; d < features.length; d++) {
+            const distId = features[d]?.properties?.district_id;
+            ctx.fillStyle = DISTRICT_DOT_COLORS[distId] ?? '#f97316';
+            ctx.globalAlpha = 0.82;
+            ctx.beginPath();
+            const start = d * 30;
+            const end = start + 30;
+            for (let i = start; i < end; i++) {
+              const sz = aDotSize[i];
+              ctx.rect(px[i] - sz * 0.5, py[i] - sz * 0.5, sz, sz);
+            }
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1.0;
           renderDirty = false;
         }
         const userSource = map.getSource('user-agent-dot');

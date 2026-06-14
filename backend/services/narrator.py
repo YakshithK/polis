@@ -188,6 +188,116 @@ _HARDCODED_POSTS: dict[str, list[str]] = {
     ],
 }
 
+_DISTRICT_ARCHETYPES: dict[str, dict[str, str]] = {
+    "downtown": {
+        "excitement": "People spilling out onto King and Bay like the city itself woke up.",
+        "tension": "Something's off downtown. People walking fast, not stopping. Eyes down.",
+        "frustration": "The mood on Bay Street is heavy. Nobody's moving fast right now.",
+        "pride": "Nathan Phillips Square has something going. People are staying.",
+    },
+    "yorkville": {
+        "excitement": "Bloor Street has come alive. Even the patios have patios right now.",
+        "tension": "The usual Yorkville calm is slightly less calm today.",
+        "frustration": "A few empty tables at spots that are never empty. Telling.",
+        "pride": "Quiet celebration in Yorkville. The good kind.",
+    },
+    "midtown": {
+        "excitement": "Eglinton is buzzing. Commuters are walking slower, actually looking around.",
+        "tension": "Midtown professionals in full stress-mode. Very fast walking.",
+        "frustration": "Nobody's going out tonight. Midtown is staying in.",
+        "pride": "The neighbourhood feels good about itself right now.",
+    },
+    "kensington": {
+        "excitement": "Market's alive in a way that even the regulars are looking up.",
+        "tension": "Baldwin Street is quieter than usual. Something shifted.",
+        "frustration": "The vibe on Augusta is off. People are feeling it.",
+        "pride": "Kensington showing out in exactly the way Kensington knows how.",
+    },
+    "west_end": {
+        "excitement": "Roncesvalles is packed. People stopped on the sidewalk just to take it in.",
+        "tension": "Something in the west end air feels unsettled today.",
+        "frustration": "Energy on Dundas West is low. People staying home.",
+        "pride": "West End neighbourhoods doing exactly what makes them special.",
+    },
+    "little_portugal": {
+        "excitement": "Ossington is alive. People who never talk are talking.",
+        "tension": "The street's tight right now. Nobody's saying it but everyone feels it.",
+        "frustration": "Tension on Dundas running through the whole block.",
+        "pride": "Little Portugal knows how to come together. It's coming together.",
+    },
+    "little_italy": {
+        "excitement": "College Street is absolutely going. Gio's windows are open all the way.",
+        "tension": "The espresso is flowing but the mood at the tables is tense.",
+        "frustration": "Nobody's lingering on the patios. That's unusual. That's a sign.",
+        "pride": "College Street doing the thing it does best: being very much itself.",
+    },
+    "rosedale": {
+        "excitement": "Even Rosedale is out tonight. That means something.",
+        "tension": "A quiet tension behind closed doors. Still polite about it.",
+        "frustration": "Rosedale in minor distress. Still composed. Very slightly.",
+        "pride": "The neighbourhood is pleased. Very quietly pleased.",
+    },
+    "east_york": {
+        "excitement": "Danforth is loud in the best way. Patrick's in his element.",
+        "tension": "East York is tense. But East York handles tense differently than everyone else.",
+        "frustration": "The community is frustrated. They have the right to be.",
+        "pride": "This neighbourhood remembers everything and is proud of it.",
+    },
+    "north_york": {
+        "excitement": "Yonge and Sheppard has an energy tonight. Unexpected and welcome.",
+        "tension": "North York stress is the suburban kind. Contained but real.",
+        "frustration": "Things not going great in North York right now. Numbers confirm it.",
+        "pride": "The neighbourhood showing up for itself. Danny approves.",
+    },
+    "etobicoke": {
+        "excitement": "Something got Etobicoke going tonight. Even Kevin's outside.",
+        "tension": "Etobicoke is on edge. The gruff kind. Still polite.",
+        "frustration": "Community is frustrated. Vince has already explained why three times.",
+        "pride": "Humber neighbourhoods are showing pride today. Earned.",
+    },
+    "scarborough": {
+        "excitement": "Scarborough is LOUD tonight. Amir's posting. Grace is at the community centre. Marcus is trying not to care.",
+        "tension": "Something's building in Scarborough. Grace is organising. Amir is documenting.",
+        "frustration": "The community is saying it clearly: we deserve better. And they're right.",
+        "pride": "Scarborough showing why it doesn't need to be anything other than itself.",
+    },
+}
+
+_CITIZEN_ACTIVITY_POOLS: dict[str, list[str]] = {
+    "Amir":      ["Outside documenting EVERYTHING 🔥", "This block is going OFF and Amir will not be quiet about it.", "Posted seven times in the last hour. Zero regrets.", "BRO 👀 BRO.", "The neighbourhood is alive and Amir is LOUDLY present for it."],
+    "Grace":     ["At the community centre making sure everyone's accounted for.", "Checking on neighbours. That's just what you do.", "Quietly making sure the right people know what's happening.", "The block needs steady hands right now. Grace has steady hands.", "Organising support. Not waiting for anyone to ask."],
+    "Marcus":    ["Watching from the window. Reluctantly.", "Fine. I care. I said it.", "Monitoring the situation from the couch.", "Didn't ask to be invested in this. Here we are.", "Dry commentary only. But Marcus is paying attention."],
+    "Danny":     ["OUTSIDE IN THE DRIVEWAY. THIS IS THE GREATEST NEIGHBOURHOOD.", "Texted the block group chat. Everyone is now informed.", "Vibrating with dad energy right now.", "TOLD EVERYONE. THEY KNOW.", "This is the best block on the planet and Danny will not stop saying it."],
+    "Mei":       ["Watching the vibe carefully before committing to an opinion.", "Something feels different today. Mei is processing.", "Cautiously optimistic. Reading signs.", "Checking in with a few neighbours to get the real read.", "The energy is there. Mei is choosing to believe in it."],
+    "Raj":       ["Actually, the data on this is very clear.", "Sent a four-paragraph analysis to the group chat. Unasked for. Accurate.", "If you look at the numbers, this outcome was predictable.", "Raj is explaining something to someone who didn't ask.", "Statistical inevitability. Raj is not surprised."],
+    "Kevin":     ["Seen worse. Seen better. Still watching.", "Back in the day, this would've been handled differently.", "Kevin is grumbling, but he's not going inside.", "Compared this to 1987. Kevin always compares things to 1987.", "Not impressed. Not leaving."],
+    "Sandra":    ["Surprised by how much she cares about this.", "Sandra did not expect to have this many feelings today.", "Started watching five minutes ago. Now fully invested.", "This was not part of Sandra's evening plan. Here she is anyway.", "Genuinely didn't care three hours ago. Cannot look away now."],
+    "Vince":     ["Vince has a strong opinion. Vince is confident. Vince is Vince.", "Strong opinion. As always.", "Vince will tell anyone who'll listen what this all means.", "Called it two weeks ago. Vince says. Nobody can verify.", "Full confidence. Debatable accuracy. Total commitment."],
+    "Jordan":    ["Posting from King and Bay. Something is happening.", "Did not plan to be outside. The city had other plans.", "Live update: the streets are talking and Jordan is recording.", "Extremely online even while physically outside.", "Just here, absorbing. And posting about it."],
+    "Priya":     ["Running the numbers. The data says something interesting.", "Citing statistics mid-conversation about city vibes.", "Analysis mode: active. Processing.", "Cross-referencing this with the last three comparable situations.", "The metrics on this are actually really telling."],
+    "Tyler":     ["THE ENERGY IS UNREAL. TYLER IS OUTSIDE.", "Chest out. Tyler is present.", "Someone had to be here and it was going to be Tyler.", "Tyler is very confident about what this all means.", "Loud, present, and absolutely not going home."],
+    "William":   ["William sent a three-word response. Unusually enthusiastic.", "Politely present. Quietly invested.", "William is attending. Discreetly.", "A subtle nod from William. High praise.", "William has opinions. Choosing not to share all of them."],
+    "Catherine": ["Catherine has watched this city for forty years. She's watching now.", "Measured response. Decades of context.", "Diplomatically noting that this is significant.", "Catherine remembers when. She's here for now too.", "Composed. But paying very close attention."],
+    "Theo":      ["Suspicious of the mainstream response, personally.", "Watching from a critical distance.", "Theo has questions about what this actually means.", "Counter-narrative mode: engaged.", "Didn't want to care about this. Still kind of does."],
+    "Luna":      ["Found a way to connect this to broader systems. As expected.", "Luna is writing something. It will be very passionate.", "This connects to everything Luna has been saying.", "Gentrification angle: identified. Luna is on it.", "Three paragraphs in the group chat. Luna is not done."],
+    "Sofia":     ["Got the neighbours together. That's what you do.", "Found the middle ground and stood there firmly.", "Warm and present. The block feels it.", "Already organising. Sofia doesn't wait.", "Making sure everyone's included. Classic."],
+    "Diogo":     ["Going where the energy is. The energy is good tonight.", "Found the vibe. Now in the vibe.", "Laid back. Following the flow.", "Wherever things are happening, Diogo ends up there.", "Easy-going. Very much here."],
+    "Ana":       ["Trying to stay neutral. Failing.", "Ana is stressed but is trying not to show it. It shows.", "The group chat is wild. Ana is watching.", "Officially overwhelmed. Unofficially fine.", "Neutral. Definitely neutral. Completely neutral."],
+    "Marco":     ["Marco has a proverb for this. He's sharing it.", "Espresso cold. Opinions hot. Marco is engaged.", "Speaking with his hands about the current situation.", "Marco knows what this means. He will explain it thoroughly.", "Loud, correct, and very animated about it."],
+    "Rosa":      ["Already knew. Rosa always already knows.", "The gossip network is active. Rosa is the centre.", "Heard about this before it happened. Typical.", "Running the block information channel as always.", "Nothing happens on this street without Rosa knowing first."],
+    "Gio":       ["The café is somehow the loudest place on the block.", "Gio is doing commentary. From the café. Loudly.", "Running a one-man broadcast from behind the counter.", "Windows open. Coffee flowing. Gio has thoughts.", "Gio's voice can be heard from a block away. Happily."],
+    "Arthur":    ["Arthur is observing. Thoughtfully.", "Present. Measured. Quietly invested.", "Arthur sent one message. It said a lot.", "Not one to overreact. Paying attention.", "The quiet type who actually understands everything."],
+    "Helen":     ["Helen has seen this before. And the time before that.", "Opening a good bottle for this one.", "Decades of context. Watching calmly.", "Remembers a similar evening in 1994. Things worked out.", "The garden is a good place to watch the city from."],
+    "Patrick":   ["EAST YORK. THIS IS OUR CITY. PATRICK IS SAYING IT.", "Patrick is not calm. Patrick is proud. Loudly.", "Fully invested. Has been for forty years.", "This city belongs to East York and Patrick says so constantly.", "TFC energy activated. Patrick is 100% here."],
+    "Donna":     ["TEXTED THE WHOLE NEIGHBOURHOOD. CAPS LOCK ON.", "Donna sent a text chain so long the phone needed to scroll.", "ALL CAPS. ALL HEART. DONNA IS INVOLVED.", "Neighbourhood updates distributed. Donna is on it.", "Checked in with everyone she knows. That's a lot of people."],
+    "Terry":     ["Been here forty years. Seen this before. Still watching.", "Terry's walking the block. That's Terry's move.", "Old East Ender staying steady.", "Not panicking. Never panics. Just watching.", "This city's been through a lot. Terry was there for most of it."],
+    "Jasmine":   ["Came for the neighbourhood. Stayed for exactly this.", "West End energy has fully converted her. She's all in.", "Still surprised by how much she cares. Very much cares.", "Called her mom. Said 'I love where I live.'", "Didn't expect to feel this way about this block. Here she is."],
+    "Noah":      ["Called it. Noah always calls it.", "Already knew. Didn't say anything. Now saying something.", "Ironic post drafted. Also genuinely interested.", "Posted something that sounds detached. Is not detached.", "Was watching before anyone else started watching."],
+    "Vivek":     ["Found the market angle in this. Immediately.", "This has implications for Q3. Running the numbers.", "Tied this to something macroeconomic. As expected.", "Finance brain activated. Everything is a spreadsheet.", "Interesting from a portfolio perspective, actually."],
+    "Claire":    ["Texted her sister. Again.", "The sister text chain is going. Providing updates.", "Running colour commentary on everything happening.", "Her sister has now been looped in on all developments.", "Fully informed. Fully in the loop. Fully texting."],
+    "Sam":       ["Equal amounts excited and anxious. Sam's natural state.", "Is it good? Is it fine? Sam is both.", "Vibing and stressing simultaneously. Very relatable.", "Everything is fine and also a lot is happening.", "Sam is present. And very much feeling all of it."],
+}
+
 _AMBIENT_FALLBACKS: dict[str, list[str]] = {
     "excitement": [
         "Feeling that Toronto energy tonight.",
@@ -249,20 +359,9 @@ async def generate_district_archetype(
     last_event_type: str | None,
     scenario_context: str,
 ) -> str:
-    emotion = district_state.emotion
-    system = "You are summarizing a Toronto neighborhood's current activity in one short sentence. Output only the sentence, no quotation marks."
-    user = (
-        f"District: {district_state.district_id}\n"
-        f"Context: {scenario_context}\n"
-        f"Recent event: {last_event_type or 'none'}\n"
-        f"Mood: happiness={emotion.excitement:.0f}, stress={emotion.tension:.0f}, pride={emotion.pride:.0f}, frustration={emotion.frustration:.0f}\n"
-        "Describe what people in this neighborhood are doing right now in one sentence."
-    )
-    try:
-        return _one_sentence(await _chat_text(model="google/gemini-2.5-flash", system=system, user=user, timeout=12.0, temperature=0.4))
-    except Exception as exc:
-        logger.warning("District archetype AI failed for %s: %s(%s)", district_state.district_id, type(exc).__name__, exc)
-        return f"People in {district_state.district_id.replace('_', ' ').title()} are reacting to the city in their own way."
+    templates = _DISTRICT_ARCHETYPES.get(district_state.district_id, {})
+    dominant = district_state.dominant
+    return templates.get(dominant, f"People in {district_state.district_id.replace('_', ' ').title()} are moving through the city in their own rhythm.")
 
 
 async def generate_citizen_activity(
@@ -274,24 +373,11 @@ async def generate_citizen_activity(
     memories: list[str],
     last_event_type: str | None,
 ) -> str:
-    system = (
-        f"You are {citizen_name}, a Toronto resident. Voice: {trim_voice(voice, 2)}. "
-        "Output exactly one sentence about what you are doing right now."
-    )
-    memory_lines = "\n".join(f"- {item}" for item in memories[-3:]) or "- none"
-    user = (
-        f"Neighborhood: {district_id}\n"
-        f"Neighborhood activity: {archetype}\n"
-        f"Recent event: {last_event_type or 'none'}\n"
-        f"Previous memories:\n{memory_lines}\n"
-        "Say what you are doing right now in first person or a natural close third-person style."
-    )
-    try:
-        text = await _chat_text(model="google/gemini-2.5-flash-lite", system=system, user=user, timeout=8.0, temperature=0.7)
-        return _one_sentence(text) or f"{citizen_name} is keeping up with city life."
-    except Exception as exc:
-        logger.warning("Citizen activity AI failed for %s: %s", citizen_name, exc)
-        return f"{citizen_name} is caught up in the chaos like everyone else"
+    import random
+    pool = _CITIZEN_ACTIVITY_POOLS.get(citizen_name)
+    if pool:
+        return random.choice(pool)
+    return f"{citizen_name} is keeping up with what's happening in the city."
 
 
 _AI_ONLY_EVENTS = {"organic"}  # only these event types go to AI; everything else uses hardcoded pool
@@ -357,32 +443,14 @@ def pick_key_districts(
 
 
 async def generate_ambient_post(state: DistrictState, clock_minute: int) -> tuple[str, str]:
-    """Return (ambient_text, character_name) for general vibe posts between events."""
+    """Return (ambient_text, character_name) from hardcoded pool — zero AI latency."""
     import random
     char = pick_character(state.district_id)
     dominant = state.dominant
-
-    def _ambient_fallback() -> str:
-        options = _AMBIENT_FALLBACKS.get(dominant, [f"The vibe in this neighbourhood is {dominant} right now."])
-        return random.choice(options)
-
-    district_name = state.district_id.replace("_", " ").title()
-    emotion = state.emotion
-    system = (
-        f"You are {char['name']}, a resident of {district_name}, Toronto. "
-        f"Voice: {char['voice']}. "
-        "Write exactly ONE social media post about the general vibe of your neighbourhood. "
-        "Under 120 characters. Output only the post text, no hashtags."
-    )
-    user = (
-        f"Clock: {clock_minute} min. Mood: {dominant} — "
-        f"excitement={emotion.excitement:.0f}, tension={emotion.tension:.0f}, "
-        f"frustration={emotion.frustration:.0f}, pride={emotion.pride:.0f}"
-    )
-    try:
-        text = await _chat_text(model="google/gemini-2.5-flash-lite", system=system, user=user, timeout=8.0, temperature=0.7)
-        return (text or _ambient_fallback()), char["name"]
-    except Exception as exc:
-        logger.warning("Ambient AI call failed for %s: %s", state.district_id, exc)
-        return _ambient_fallback(), char["name"]
+    # Prefer character-specific pool; fall back to mood pool
+    pool = _CITIZEN_ACTIVITY_POOLS.get(char["name"])
+    if pool:
+        return random.choice(pool), char["name"]
+    options = _AMBIENT_FALLBACKS.get(dominant, [f"The vibe in this neighbourhood is {dominant} right now."])
+    return random.choice(options), char["name"]
 
