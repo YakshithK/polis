@@ -10,7 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from backend.models.district import DistrictState
 from backend.models.event import MatchEvent
 from backend.services.scenario import ScenarioConfig
-from backend.services.rules import apply_event, compute_influence, decay_state
+from backend.services.rules import apply_event, compute_influence, decay_state, _clamp_state
 from backend.services.narrator import generate_feed_text, pick_key_districts
 from backend.services.director import generate_timeline
 from backend.services.characters import pick_character
@@ -189,18 +189,15 @@ class SimulationEngine:
                     states = await self.get_all_states()
                     for state in states:
                         decay_state(state)
-                    
-                    # Breathing (small random oscillations and mood drift)
-                    for state in states:
-                        state.emotion.excitement += random.uniform(-0.8, 0.8)
-                        state.emotion.tension += random.uniform(-0.6, 0.6)
+                        state.emotion.excitement  += random.uniform(-0.8, 0.8)
+                        state.emotion.tension     += random.uniform(-0.6, 0.6)
                         state.emotion.frustration += random.uniform(-0.4, 0.4)
-                        state.emotion.pride += random.uniform(-0.5, 0.5)
-                        state.activity.social += random.uniform(-1.0, 1.0)
-                        
-                        from backend.services.rules import _clamp_state
+                        state.emotion.pride       += random.uniform(-0.5, 0.5)
+                        state.activity.social     += random.uniform(-1.0, 1.0)
                         _clamp_state(state)
-                        await self._save_state(state)
+                    # Batch all 12 writes in one round-trip instead of 12 serial
+                    # Atlas calls (was holding the lock ~600ms; now ~50ms).
+                    await self._save_states_batch(states)
                 
                 # Check for autopilot timeline events (skip halftime/fulltime minutes)
                 if self._autopilot_active and self.simulation_clock not in (45, 90):
@@ -266,12 +263,26 @@ class SimulationEngine:
         await self.inject_event(event, source="organic")
 
     async def _save_state(self, state: DistrictState) -> None:
-        """Persist a district state to MongoDB."""
+        """Persist a single district state to MongoDB."""
         await self.db["districts"].replace_one(
             {"district_id": state.district_id},
             state.model_dump(),
             upsert=True,
         )
+
+    async def _save_states_batch(self, states: list[DistrictState]) -> None:
+        """Persist all district states in one MongoDB round-trip."""
+        from pymongo import ReplaceOne
+        ops = [
+            ReplaceOne(
+                {"district_id": s.district_id},
+                s.model_dump(),
+                upsert=True,
+            )
+            for s in states
+        ]
+        if ops:
+            await self.db["districts"].bulk_write(ops, ordered=False)
 
     async def _broadcast_update(
         self,

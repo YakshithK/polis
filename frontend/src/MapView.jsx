@@ -579,6 +579,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     if (!map) return;
 
     let running = true;
+    let frameSkip = 0;
     const tick = (now) => {
       if (!running) return;
       const agents = agentsRef.current;
@@ -614,7 +615,15 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
           }
           clampAgent(agent);
         });
-        updateAgentDotsSource();
+        // Push to Mapbox at ~20fps (every 3rd rAF frame) to reduce
+        // allocation pressure: 720 new GeoJSON objects per setData call
+        // at 60fps was creating 43k short-lived objects/s and continuous
+        // WebGL re-uploads. 20fps is imperceptible for dot jitter.
+        frameSkip++;
+        if (frameSkip >= 3) {
+          frameSkip = 0;
+          updateAgentDotsSource();
+        }
       }
       agentAnimRef.current = requestAnimationFrame(tick);
     };

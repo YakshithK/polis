@@ -12,7 +12,7 @@ import { useAmbience } from './useAmbience';
 
 export default function App() {
   const {
-    districts, feedEntries, connected, injectEvent,
+    districts, feedEntries, connected, connectionError, injectEvent,
     lastEvent, autopilotStatus, triggerAutopilot, eventLog, matchMinute,
   } = useSimulation();
 
@@ -110,6 +110,18 @@ export default function App() {
       {/* Splash */}
       {!simulationStarted && (
         <SplashScreen onStart={() => setSimulationStarted(true)} />
+      )}
+
+      {/* Backend connection error banner */}
+      {connectionError && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: 'rgba(185,28,28,0.92)', color: '#fff',
+          padding: '8px 16px', fontSize: '13px', fontFamily: 'monospace',
+          textAlign: 'center',
+        }}>
+          {connectionError} — retrying…
+        </div>
       )}
 
       {/* All UI panels — render after flyover */}
