@@ -2,76 +2,23 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { DISTRICTS_GEOJSON } from './districts';
-import { WORLD_MASK_GEOJSON } from './world-mask';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-// Emotion color system — dominant emotion drives hue
-const EMOTION_NEUTRAL = '#0d1a35';
-const EMOTION_PEAKS = {
-  excitement:  ['#1a3a6b', '#d97706', '#ea580c'],
-  tension:     ['#2d1b69', '#7c3aed', '#a21caf'],
-  pride:       ['#1e3a5f', '#1d4ed8', '#2563eb'],
-  frustration: ['#3b1219', '#991b1b', '#b91c1c'],
-};
-
-function hexToRgb(hex) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return [r, g, b];
+function emotionToColor(state) {
+  const { excitement, tension, pride, frustration } = state.emotion;
+  const dominant = Math.max(excitement, tension, pride, frustration);
+  const intensity = dominant / 100;
+  let h = 24, s = 85;
+  if (dominant === excitement)        { h = 24;  s = 85; }
+  else if (dominant === tension)      { h = 280; s = 75; }
+  else if (dominant === pride)        { h = 217; s = 80; }
+  else if (dominant === frustration)  { h = 0;   s = 78; }
+  const l = 90 - (intensity * 45);
+  return `hsl(${h}, ${s}%, ${l}%)`;
 }
-
-function rgbToHex(r, g, b) {
-  return '#' + [r, g, b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-function interpolateColor(hex1, hex2, t) {
-  const [r1, g1, b1] = hexToRgb(hex1);
-  const [r2, g2, b2] = hexToRgb(hex2);
-  return rgbToHex(lerp(r1, r2, t), lerp(g1, g2, t), lerp(b1, b2, t));
-}
-
-function getEmotionColor(emotion = {}) {
-  const exc = emotion.excitement ?? 0;
-  const ten = emotion.tension ?? 0;
-  const pri = emotion.pride ?? 0;
-  const fru = emotion.frustration ?? 0;
-
-  const vals = { excitement: exc, tension: ten, pride: pri, frustration: fru };
-  const dominant = Object.entries(vals).sort((a, b) => b[1] - a[1])[0];
-  const [key, value] = dominant;
-  const intensity = value / 100;
-
-  const [low, mid, high] = EMOTION_PEAKS[key];
-  let color;
-  if (intensity < 0.4) {
-    color = interpolateColor(EMOTION_NEUTRAL, low, intensity / 0.4);
-  } else if (intensity < 0.7) {
-    color = interpolateColor(low, mid, (intensity - 0.4) / 0.3);
-  } else {
-    color = interpolateColor(mid, high, (intensity - 0.7) / 0.3);
-  }
-
-  const opacity = 0.55 + intensity * 0.25;
-  return { color, opacity };
-}
-
-// Layers to hide on dark-v11 base style
-const LAYERS_TO_HIDE = [
-  'poi-label', 'transit-label', 'building', 'building-outline',
-  'road-label-navigation', 'road-minor-label', 'road-exit-shield',
-  'road-intersection', 'road-number-shield',
-  'border-country-primary', 'border-country-secondary-tertiary',
-  'country-label', 'state-label',
-];
 
 const BMO_FIELD = [-79.4186, 43.6332];
-const AGENT_JITTER = 0.0002;
 const EVENT_SOURCE = {
   goal: 'downtown',
   red_card: 'downtown',
@@ -90,11 +37,6 @@ const EVENT_EMOJIS = {
   championship_win: ['🏆', '🎊', '🇨🇦'],
 };
 
-function clampAgent(agent) {
-  const { lonMin, lonMax, latMin, latMax } = agent.bounds;
-  agent.x = Math.max(lonMin, Math.min(lonMax, agent.x));
-  agent.y = Math.max(latMin, Math.min(latMax, agent.y));
-}
 
 function featureCentroid(feature) {
   const coords = feature.geometry.coordinates[0];
@@ -124,28 +66,12 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   const hoveredRef = useRef(null);
   const [tooltip, setTooltip] = useState(null); // {x, y, name, emotion, intensity}
   const [emojiBursts, setEmojiBursts] = useState([]); // [{id, x, y, emoji}]
-  const agentsRef = useRef([]);
   const districtsRef = useRef(districts);
-  const agentAnimRef = useRef(null);
   const lastEmojiEventRef = useRef(null);
   const canvasRef = useRef(null);
+  const onEventReceivedRef = useRef(null);
 
   districtsRef.current = districts;
-
-  function drawAgentCanvas() {
-    const canvas = canvasRef.current;
-    const map = mapRef.current;
-    if (!canvas || !map || !map.isStyleLoaded()) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    agentsRef.current.forEach(a => {
-      const { x, y } = map.project([a.x, a.y]);
-      ctx.beginPath();
-      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  }
 
   function spawnEmojiBurst(districtId, emojis) {
     const map = mapRef.current;
@@ -196,14 +122,11 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     ranked.forEach(({ feature }, index) => {
       const rank = index;
       const id_t = setTimeout(() => {
-        const savedColor = feature.properties.fill_color;
-        const savedOpacity = feature.properties.fill_opacity;
-        feature.properties.fill_color = '#ffffff';
-        feature.properties.fill_opacity = Math.min(0.95, savedOpacity + 0.25);
+        const savedColor = feature.properties.emotionColor;
+        feature.properties.emotionColor = 'hsl(24, 85%, 95%)';
         scheduleMapUpdate();
         setTimeout(() => {
-          feature.properties.fill_color = savedColor;
-          feature.properties.fill_opacity = savedOpacity;
+          feature.properties.emotionColor = savedColor;
           scheduleMapUpdate();
         }, 400);
       }, rank * step);
@@ -213,16 +136,13 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     return () => replayTimeouts.forEach(clearTimeout);
   }
 
-  // Sync emotion values into feature properties and compute color
   function syncFeature(feature, state) {
     const em = state.emotion ?? {};
     feature.properties.excitement  = em.excitement  ?? 0;
     feature.properties.tension     = em.tension     ?? 0;
     feature.properties.pride       = em.pride       ?? 0;
     feature.properties.frustration = em.frustration ?? 0;
-    const { color, opacity } = getEmotionColor(em);
-    feature.properties.fill_color   = color;
-    feature.properties.fill_opacity = opacity;
+    feature.properties.emotionColor = emotionToColor({ emotion: em });
   }
 
   const scheduleMapUpdate = () => {
@@ -243,13 +163,14 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
 
     const map = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: 'mapbox://styles/mapbox/streets-v12',
       center: [-79.38, 43.82],
       zoom: 9,
       pitch: 0,
       bearing: 0,
       attributionControl: false,
       dragRotate: false,
+      touchZoomRotate: false,
       maxBounds: [[-79.65, 43.55], [-79.10, 43.90]],
       minZoom: 10,
       maxZoom: 14,
@@ -258,37 +179,9 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     mapRef.current = map;
 
     map.on('load', () => {
-      // Hide noisy base layers
-      map.getStyle().layers.forEach(layer => {
-        if (
-          LAYERS_TO_HIDE.some(pattern => layer.id.includes(pattern)) ||
-          layer.id.startsWith('settlement') ||
-          layer.id.startsWith('place-') && !layer.id.includes('water')
-        ) {
-          try { map.setLayoutProperty(layer.id, 'visibility', 'none'); } catch (_) {}
-        }
-        // Keep major roads and water only; hide minor roads
-        if (layer.type === 'line' && layer['source-layer'] === 'road') {
-          const cls = layer.filter?.[2] ?? '';
-          if (['service', 'street', 'street_limited', 'path', 'pedestrian', 'track', 'link'].includes(cls)) {
-            try { map.setLayoutProperty(layer.id, 'visibility', 'none'); } catch (_) {}
-          }
-        }
-      });
-
-      // World mask — darkens everything outside Toronto
-      map.addSource('world-mask', { type: 'geojson', data: WORLD_MASK_GEOJSON });
-      map.addLayer({
-        id: 'world-mask',
-        type: 'fill',
-        source: 'world-mask',
-        paint: { 'fill-color': '#050810', 'fill-opacity': 0.92 },
-      });
-
       // Initialize features with neutral color
       geoDataRef.current.features.forEach(f => {
-        f.properties.fill_color   = EMOTION_NEUTRAL;
-        f.properties.fill_opacity = 0.55;
+        f.properties.emotionColor = 'hsl(24, 10%, 90%)';
       });
 
       map.addSource('toronto-districts', {
@@ -296,30 +189,28 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         data: geoDataRef.current,
       });
 
-      // District fill — flat, driven by emotion color
+      // District fill — driven by emotion color, static opacity
       map.addLayer({
         id: 'district-fill',
         type: 'fill',
         source: 'toronto-districts',
         paint: {
-          'fill-color': ['get', 'fill_color'],
-          'fill-opacity': ['get', 'fill_opacity'],
+          'fill-color': ['get', 'emotionColor'],
+          'fill-opacity': 0.42,
           'fill-color-transition': { duration: 700, delay: 0 },
-          'fill-opacity-transition': { duration: 700, delay: 0 },
         },
-      });
+      }, 'road-label');
 
-      // District borders — subtle blue glow
+      // District borders
       map.addLayer({
         id: 'district-borders',
         type: 'line',
         source: 'toronto-districts',
         paint: {
-          'line-color': 'rgba(80, 120, 255, 0.25)',
+          'line-color': 'rgba(0, 0, 0, 0.12)',
           'line-width': 1.5,
-          'line-blur': 1,
         },
-      });
+      }, 'road-label');
 
       // Hover highlight layer
       map.addLayer({
@@ -328,10 +219,10 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         source: 'toronto-districts',
         filter: ['==', 'district_id', ''],
         paint: {
-          'line-color': 'rgba(80, 120, 255, 0.70)',
+          'line-color': '#1a56db',
           'line-width': 2.5,
         },
-      });
+      }, 'road-label');
 
       // District name labels
       map.addLayer({
@@ -346,52 +237,174 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
           'text-allow-overlap': false,
         },
         paint: {
-          'text-color': 'rgba(232, 237, 248, 0.90)',
-          'text-halo-color': 'rgba(5, 8, 16, 0.85)',
-          'text-halo-width': 2,
+          'text-color': 'rgba(10, 15, 26, 0.85)',
+          'text-halo-color': 'rgba(255, 255, 255, 0.9)',
+          'text-halo-width': 1.5,
         },
       });
 
-      // Seed agent dots inside district bounding boxes
-      const agents = [];
-      geoDataRef.current.features.forEach(feature => {
-        const districtId = feature.properties.district_id;
-        let lonMin = Infinity, lonMax = -Infinity, latMin = Infinity, latMax = -Infinity;
-        let sumLon = 0, sumLat = 0, count = 0;
-        
+      // ── TypedArray agent system ─────────────────────────────
+      const N = 360;
+      const aLat = new Float32Array(N);
+      const aLon = new Float32Array(N);
+      const tLat = new Float32Array(N);
+      const tLon = new Float32Array(N);
+      const aSpeed = new Float32Array(N);
+      const aState = new Uint8Array(N);  // 0=MILLING 1=CELEBRATING 2=FLEEING 3=TENSED 4=FROZEN
+      const aDist = new Uint8Array(N);
+      const frozenFor = new Int16Array(N);
+      const px = new Float32Array(N);
+      const py = new Float32Array(N);
+      const cooldown = new Uint16Array(N);
+      const redBucket = [], greyBucket = [], blueBucket = [];
+      const bboxes = [];  // { minLon, maxLon, minLat, maxLat, cLon, cLat }
+
+      const RED_T = 0.65, BLUE_T = 0.35;
+      const MILLING = 0, CELEBRATING = 1, FLEEING = 2, TENSED = 3, FROZEN = 4;
+
+      const features = geoDataRef.current.features;
+      features.forEach((feature, dIdx) => {
         const coords = feature.geometry.coordinates[0];
-        coords.forEach(([lon, lat]) => {
-          if (lon < lonMin) lonMin = lon;
-          if (lon > lonMax) lonMax = lon;
-          if (lat < latMin) latMin = lat;
-          if (lat > latMax) latMax = lat;
-          sumLon += lon;
-          sumLat += lat;
-          count++;
+        let mnLo = Infinity, mxLo = -Infinity, mnLa = Infinity, mxLa = -Infinity;
+        let sLo = 0, sLa = 0;
+        coords.forEach(([lo, la]) => {
+          if (lo < mnLo) mnLo = lo; if (lo > mxLo) mxLo = lo;
+          if (la < mnLa) mnLa = la; if (la > mxLa) mxLa = la;
+          sLo += lo; sLa += la;
         });
-        
-        const centroidX = sumLon / count;
-        const centroidY = sumLat / count;
-        
-        for (let i = 0; i < 60; i++) {
-          const x = lonMin + Math.random() * (lonMax - lonMin);
-          const y = latMin + Math.random() * (latMax - latMin);
-          agents.push({
-            id: `${districtId}-${i}`,
-            districtId,
-            x,
-            y,
-            originX: x,
-            originY: y,
-            bounds: { lonMin, lonMax, latMin, latMax },
-            centroidX,
-            centroidY,
-            mode: 'normal',
-            modeTimer: 0
-          });
+        bboxes.push({ minLon: mnLo, maxLon: mxLo, minLat: mnLa, maxLat: mxLa, cLon: sLo / coords.length, cLat: sLa / coords.length });
+
+        const distId = feature.properties.district_id;
+        const dState = Object.values(districtsRef.current).find(d => d.district_id === distId);
+        const support = (dState?.alignment?.canada_support ?? 50) / 100;
+
+        for (let j = 0; j < 30; j++) {
+          const i = dIdx * 30 + j;
+          aLat[i] = mnLa + Math.random() * (mxLa - mnLa);
+          aLon[i] = mnLo + Math.random() * (mxLo - mnLo);
+          tLat[i] = aLat[i]; tLon[i] = aLon[i];
+          aSpeed[i] = 0.025 + Math.random() * 0.015;
+          aState[i] = MILLING;
+          aDist[i] = dIdx;
+          frozenFor[i] = 0;
+          cooldown[i] = Math.floor(Math.random() * 120);
+          if (support > RED_T) redBucket.push(i);
+          else if (support < BLUE_T) blueBucket.push(i);
+          else greyBucket.push(i);
         }
       });
-      agentsRef.current = agents;
+
+      function pickNewTarget(i) {
+        const b = bboxes[aDist[i]]; if (!b) return;
+        tLon[i] = b.minLon + Math.random() * (b.maxLon - b.minLon);
+        tLat[i] = b.minLat + Math.random() * (b.maxLat - b.minLat);
+      }
+
+      function updateAgentPositions() {
+        for (let i = 0; i < N; i++) {
+          const s = aState[i];
+          if (s === FROZEN) { if (--frozenFor[i] <= 0) aState[i] = MILLING; continue; }
+          let spd = aSpeed[i];
+          if (s === CELEBRATING) spd *= 3.5;
+          else if (s === FLEEING) spd *= 2.5;
+          else if (s === TENSED) spd *= 0.4;
+
+          if (--cooldown[i] <= 0) {
+            const b = bboxes[aDist[i]];
+            if (s === CELEBRATING) {
+              tLon[i] = BMO_FIELD[0]; tLat[i] = BMO_FIELD[1]; cooldown[i] = 90;
+            } else if (s === FLEEING && b) {
+              const dx = aLon[i] - b.cLon, dy = aLat[i] - b.cLat;
+              const len = Math.hypot(dx, dy) || 0.0001;
+              tLon[i] = aLon[i] + (dx / len) * 0.02;
+              tLat[i] = aLat[i] + (dy / len) * 0.02;
+              cooldown[i] = 30;
+            } else if (s === TENSED) {
+              tLon[i] = aLon[i] + (Math.random() - 0.5) * 0.003;
+              tLat[i] = aLat[i] + (Math.random() - 0.5) * 0.003;
+              cooldown[i] = 15;
+            } else {
+              pickNewTarget(i); cooldown[i] = 60 + Math.floor(Math.random() * 120);
+            }
+          }
+
+          aLon[i] += (tLon[i] - aLon[i]) * spd;
+          aLat[i] += (tLat[i] - aLat[i]) * spd;
+
+          // Clamp to district for milling/tensed
+          if (s === MILLING || s === TENSED) {
+            const b = bboxes[aDist[i]];
+            if (b) {
+              aLon[i] = Math.max(b.minLon, Math.min(b.maxLon, aLon[i]));
+              aLat[i] = Math.max(b.minLat, Math.min(b.maxLat, aLat[i]));
+            }
+          }
+        }
+      }
+
+      function onEventReceived(event) {
+        if (!event) return;
+        if (event.type === 'var_review' || event.type === 'penalty_miss') {
+          for (let i = 0; i < N; i++) { aState[i] = TENSED; cooldown[i] = 20; }
+          setTimeout(() => { for (let i = 0; i < N; i++) if (aState[i] === TENSED) aState[i] = MILLING; }, 4000);
+        } else if (event.type === 'red_card') {
+          for (let i = 0; i < N; i++) { aState[i] = FROZEN; frozenFor[i] = 90; }
+        } else if (event.type === 'elimination') {
+          for (let i = 0; i < N; i++) { aState[i] = FLEEING; cooldown[i] = 0; }
+          setTimeout(() => { for (let i = 0; i < N; i++) if (aState[i] === FLEEING) aState[i] = MILLING; }, 5000);
+        } else if (event.type === 'championship_win') {
+          for (let i = 0; i < N; i++) { aState[i] = CELEBRATING; cooldown[i] = 0; }
+        } else if (event.type === 'goal' && event.team === 'canada') {
+          redBucket.forEach(i => { aState[i] = CELEBRATING; cooldown[i] = 0; });
+          greyBucket.forEach(i => { aState[i] = CELEBRATING; cooldown[i] = 0; });
+          setTimeout(() => {
+            redBucket.forEach(i => { if (aState[i] === CELEBRATING) aState[i] = MILLING; });
+            greyBucket.forEach(i => { if (aState[i] === CELEBRATING) aState[i] = MILLING; });
+          }, 6000);
+        } else if (event.type === 'goal' && event.team === 'opponent') {
+          blueBucket.forEach(i => { aState[i] = CELEBRATING; cooldown[i] = 0; });
+          setTimeout(() => { blueBucket.forEach(i => { if (aState[i] === CELEBRATING) aState[i] = MILLING; }); }, 6000);
+        }
+      }
+
+      onEventReceivedRef.current = onEventReceived;
+
+      // RAF draw loop — 30Hz position, 60Hz render
+      let lastPositionUpdate = 0;
+      let projectionDirty = true;
+      let rafId;
+
+      function drawFrame(timestamp) {
+        if (timestamp - lastPositionUpdate > 33) {
+          updateAgentPositions();
+          projectionDirty = true;
+          lastPositionUpdate = timestamp;
+        }
+        if (projectionDirty) {
+          for (let i = 0; i < N; i++) {
+            const pt = map.project([aLon[i], aLat[i]]);
+            px[i] = pt.x; py[i] = pt.y;
+          }
+          projectionDirty = false;
+        }
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: false, desynchronized: true });
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          const DOT = 4;
+          ctx.fillStyle = '#cc0000';
+          redBucket.forEach(i => ctx.fillRect(px[i] - 2, py[i] - 2, DOT, DOT));
+          ctx.fillStyle = '#94a3b8';
+          greyBucket.forEach(i => ctx.fillRect(px[i] - 2, py[i] - 2, DOT, DOT));
+          ctx.fillStyle = '#1a56db';
+          blueBucket.forEach(i => ctx.fillRect(px[i] - 2, py[i] - 2, DOT, DOT));
+        }
+        rafId = requestAnimationFrame(drawFrame);
+      }
+
+      rafId = requestAnimationFrame(drawFrame);
+
+      map.on('remove', () => cancelAnimationFrame(rafId));
 
       // Hover interaction
       map.on('mousemove', 'district-fill', (e) => {
@@ -460,8 +473,8 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     map.flyTo({
       center: [-79.38, 43.68],
       zoom: 11.5,
-      pitch: 10,
-      bearing: -5,
+      pitch: 0,
+      bearing: 0,
       duration: 3000,
       curve: 1.5,
       essential: true,
@@ -483,14 +496,14 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     map.flyTo({
       center: [f.geometry.coordinates[0][0][0], f.geometry.coordinates[0][0][1]],
       zoom: 12.5,
-      pitch: 15,
-      bearing: (Math.random() - 0.5) * 24,
+      pitch: 0,
+      bearing: 0,
       duration: 1600,
       essential: true,
     });
 
     const returnTimer = setTimeout(() => {
-      map.flyTo({ center: [-79.38, 43.68], zoom: 11.5, pitch: 10, bearing: 0, duration: 2000 });
+      map.flyTo({ center: [-79.38, 43.68], zoom: 11.5, pitch: 0, bearing: 0, duration: 2000 });
     }, 5000);
 
     return () => clearTimeout(returnTimer);
@@ -538,8 +551,8 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         if (!pendingDistrictsRef.current.has(districtId)) {
           const feature = featureById[districtId];
           if (feature) {
-            const { color } = getEmotionColor(state.emotion);
-            if (feature.properties.fill_color !== color) {
+            const color = emotionToColor({ emotion: state.emotion ?? {} });
+            if (feature.properties.emotionColor !== color) {
               syncFeature(feature, state);
               changed = true;
             }
@@ -565,88 +578,10 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
     return () => obs.disconnect();
   }, []);
 
-  // Agent dot Brownian motion — draws directly to Canvas overlay (no Mapbox setData)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    let running = true;
-    const tick = (now) => {
-      if (!running) return;
-      const agents = agentsRef.current;
-      if (agents.length) {
-        agents.forEach(agent => {
-          if (agent.mode === 'freeze') {
-            if (now >= agent.modeTimer) agent.mode = 'normal';
-            return;
-          }
-          if (agent.mode === 'goal_drift') {
-            const t = 0.012;
-            agent.x += (BMO_FIELD[0] - agent.x) * t;
-            agent.y += (BMO_FIELD[1] - agent.y) * t;
-            if (now >= agent.modeTimer) {
-              agent.mode = 'return';
-              agent.modeTimer = now + 3000;
-            }
-          } else if (agent.mode === 'return') {
-            const t = 0.015;
-            agent.x += (agent.originX - agent.x) * t;
-            agent.y += (agent.originY - agent.y) * t;
-            if (now >= agent.modeTimer) agent.mode = 'normal';
-          } else if (agent.mode === 'scatter') {
-            const dx = agent.x - agent.centroidX;
-            const dy = agent.y - agent.centroidY;
-            const len = Math.hypot(dx, dy) || 0.0001;
-            agent.x += (dx / len) * 0.00035;
-            agent.y += (dy / len) * 0.00035;
-            if (now >= agent.modeTimer) agent.mode = 'normal';
-          } else {
-            agent.x += (Math.random() - 0.5) * 2 * AGENT_JITTER;
-            agent.y += (Math.random() - 0.5) * 2 * AGENT_JITTER;
-          }
-          clampAgent(agent);
-        });
-        drawAgentCanvas();
-      }
-      agentAnimRef.current = requestAnimationFrame(tick);
-    };
-
-    agentAnimRef.current = requestAnimationFrame(tick);
-    return () => {
-      running = false;
-      if (agentAnimRef.current) cancelAnimationFrame(agentAnimRef.current);
-    };
-  }, []);
-
-  // Switch agent modes on match events
+  // Wire lastEvent to TypedArray agent state machine
   useEffect(() => {
     if (!lastEvent) return;
-    const agents = agentsRef.current;
-    if (!agents.length) return;
-    const now = performance.now();
-    const districtStates = districtsRef.current;
-
-    if (lastEvent.type === 'var_review') {
-      agents.forEach(a => {
-        a.mode = 'freeze';
-        a.modeTimer = now + 3000;
-      });
-    } else if (lastEvent.type === 'elimination') {
-      agents.forEach(a => {
-        a.mode = 'scatter';
-        a.modeTimer = now + 3000;
-      });
-    } else if (lastEvent.type === 'goal' && lastEvent.team === 'canada') {
-      agents.forEach(a => {
-        const state = districtStates[a.districtId];
-        const exc = state?.emotion?.excitement ?? 0;
-        const ca = state?.alignment?.canada_support ?? 0;
-        if (exc > 60 || ca > 60) {
-          a.mode = 'goal_drift';
-          a.modeTimer = now + 3000;
-        }
-      });
-    }
+    onEventReceivedRef.current?.(lastEvent);
   }, [lastEvent]);
 
   // Emoji burst on high-severity events

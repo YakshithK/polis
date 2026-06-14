@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import MoodBar from './MoodBar';
-import FeedEntry from './FeedEntry';
 
 const EVENT_ICONS = {
   goal:             '⚽',
@@ -20,9 +19,9 @@ const LEGEND = [
 ];
 
 function pulseColor(v) {
-  if (v >= 70) return '#ea580c';
+  if (v >= 70) return '#f97316';
   if (v >= 50) return '#d97706';
-  return '#3d7bff';
+  return '#1a56db';
 }
 
 function PulseTab({ districts }) {
@@ -67,7 +66,7 @@ function PulseTab({ districts }) {
             <span className="hottest-val">{Math.round(d.emotion?.excitement ?? 0)}</span>
           </div>
         ))}
-        {!hottest.length && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Loading…</div>}
+        {!hottest.length && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-muted)' }}>Loading…</div>}
       </div>
 
       <div className="stats-section">
@@ -88,23 +87,6 @@ function PulseTab({ districts }) {
   );
 }
 
-function FeedTab({ feedEntries, connected }) {
-  return (
-    <div className="lp-scroll">
-      <div className="lp-feed-status">
-        <div className={`feed-status-dot${connected ? ' live' : ''}`} />
-        <span>{connected ? 'Live' : 'Connecting…'}</span>
-      </div>
-      {feedEntries.length === 0 ? (
-        <div className="feed-empty-state">The city is quiet.<br />Tap an event to wake it up.</div>
-      ) : (
-        feedEntries.map((entry, i) => (
-          <FeedEntry key={`${entry.district}-${entry.ts}-${i}`} entry={entry} />
-        ))
-      )}
-    </div>
-  );
-}
 
 function EventsTab({ eventLog, onEventClick }) {
   const bottomRef = useRef(null);
@@ -140,16 +122,15 @@ function EventsTab({ eventLog, onEventClick }) {
 }
 
 const TABS = [
-  { id: 'pulse',  label: 'City Pulse' },
-  { id: 'feed',   label: 'Live Feed'  },
-  { id: 'events', label: 'Events'     },
+  { id: 'pulse',  label: 'Pulse'  },
+  { id: 'events', label: 'Events' },
 ];
 
-export default function LeftPanel({ districts, feedEntries, connected, eventLog, onEventClick }) {
+export default function LeftPanel({ districts, eventLog, onEventClick }) {
   const [activeTab, setActiveTab] = useState('pulse');
 
   return (
-    <div className="left-panel glass panel-reveal" style={{ animationDelay: '0.15s' }}>
+    <div className="left-panel glass panel-reveal" style={{ animationDelay: '0.1s' }}>
       <div className="left-panel-tabs">
         {TABS.map(t => (
           <button
@@ -164,7 +145,6 @@ export default function LeftPanel({ districts, feedEntries, connected, eventLog,
 
       <div className="left-panel-body">
         {activeTab === 'pulse'  && <PulseTab  districts={districts} />}
-        {activeTab === 'feed'   && <FeedTab   feedEntries={feedEntries} connected={connected} />}
         {activeTab === 'events' && <EventsTab eventLog={eventLog} onEventClick={onEventClick} />}
       </div>
     </div>

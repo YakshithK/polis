@@ -63,6 +63,17 @@ def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0)
     opponent_support as fractions of 100) and scaled by event severity [0, 1].
     All fields are clamped to [0, 100] after all deltas are applied.
     """
+    # Custom effects from NL organic events bypass hardcoded rules
+    custom_effects = getattr(event, "custom_effects", None)
+    if event.type == "organic" and custom_effects:
+        district_effects = custom_effects.get(state.district_id)
+        if district_effects:
+            for emotion, delta in district_effects.items():
+                current = getattr(state.emotion, emotion, 50.0)
+                setattr(state.emotion, emotion, current + delta * event.severity)
+        _clamp_state(state)
+        return
+
     s = event.severity                          # severity multiplier [0.0, 1.0]
     ca = state.alignment.canada_support / 100.0
     op = state.alignment.opponent_support / 100.0

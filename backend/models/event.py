@@ -12,9 +12,9 @@ class MatchEvent(BaseModel):
         ...,
         description="Event category, e.g. 'goal', 'red_card', 'penalty', 'final_whistle'",
     )
-    team: str = Field(
-        ...,
-        description="Team identifier, e.g. 'canada', 'opponent'",
+    team: str | None = Field(
+        default=None,
+        description="Team identifier, e.g. 'canada', 'opponent'. None for organic events.",
     )
     minute: int = Field(
         ...,
@@ -28,5 +28,9 @@ class MatchEvent(BaseModel):
     source_district: str | None = Field(
         default=None,
         description="Optional district ID where the event originated (used for organic/local events)",
+    )
+    custom_effects: dict | None = Field(
+        default=None,
+        description="Per-district emotion deltas for organic NL events. Keys are district_id, values are emotion dicts.",
     )
 

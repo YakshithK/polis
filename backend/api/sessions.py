@@ -62,6 +62,38 @@ async def inject_event(
     return {"status": "queued", "event": event.model_dump()}
 
 
+from backend.services.interpreter import interpret_natural_event
+
+
+class NaturalEventBody(BaseModel):
+    text: str
+
+
+@router.post("/{session_id}/event/natural")
+async def inject_natural_event(session_id: str, body: NaturalEventBody):
+    engine = _engines.get(session_id)
+    if not engine:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    result = await interpret_natural_event(body.text, current_minute=engine.simulation_clock)
+    event = result["event"]
+
+    if result["custom_effects"]:
+        event.custom_effects = result["custom_effects"]
+
+    await engine.inject_event(event, source="natural")
+
+    return {
+        "interpreted_as": {
+            "type": event.type,
+            "team": event.team,
+            "minute": event.minute,
+            "severity": event.severity,
+            "description": result["description"],
+        }
+    }
+
+
 class AutopilotRequest(BaseModel):
     action: str  # "start" | "stop"
     strictness: str = "conservative"  # "conservative" | "expressive"

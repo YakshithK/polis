@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import MapView from './MapView';
 import Scorebar from './Scorebar';
 import LeftPanel from './LeftPanel';
+import FeedPanel from './FeedPanel';
 import ControlsBar from './ControlsBar';
 import DistrictCard from './DistrictCard';
 import SplashScreen from './SplashScreen';
@@ -12,6 +13,7 @@ export default function App() {
   const {
     districts, feedEntries, connected, connectionError, injectEvent,
     lastEvent, autopilotStatus, triggerAutopilot, eventLog, matchMinute,
+    nlState, interpretation, submitNaturalEvent,
   } = useSimulation();
 
   const [simulationStarted, setSimulationStarted] = useState(false);
@@ -113,8 +115,8 @@ export default function App() {
       {connectionError && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
-          background: 'rgba(185,28,28,0.92)', color: '#fff',
-          padding: '8px 16px', fontSize: '13px', fontFamily: 'monospace',
+          background: 'rgba(220,38,38,0.95)', color: '#fff',
+          padding: '8px 16px', fontSize: '13px', fontFamily: 'var(--font-data)',
           textAlign: 'center',
         }}>
           {connectionError} — retrying…
@@ -132,16 +134,20 @@ export default function App() {
             autopilotStatus={autopilotStatus}
           />
 
-          {/* Left: tabbed panel (City Pulse / Live Feed / Events) */}
+          {/* Left: tabbed panel (Pulse / Events) */}
           <LeftPanel
             districts={districts}
-            feedEntries={feedEntries}
-            connected={connected}
             eventLog={eventLog}
             onEventClick={handleEventLogClick}
           />
 
-          {/* Bottom center: Controls */}
+          {/* Right: always-visible feed panel */}
+          <FeedPanel
+            feedEntries={feedEntries}
+            connected={connected}
+          />
+
+          {/* Bottom: Controls */}
           <div className="bottom-panel panel-reveal" style={{ animationDelay: '0.3s' }}>
             <ControlsBar
               onEvent={injectEvent}
@@ -149,6 +155,9 @@ export default function App() {
               onAutopilot={handleAutopilot}
               strictness={strictness}
               onStrictness={setStrictness}
+              nlState={nlState}
+              interpretation={interpretation}
+              onNaturalEvent={submitNaturalEvent}
             />
           </div>
 

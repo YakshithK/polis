@@ -110,6 +110,31 @@ export function useSimulation() {
     if (action === 'stop') setAutopilotStatus('idle');
   }, []);
 
+  const [nlState, setNLState] = useState('idle');
+  const [interpretation, setInterpretation] = useState(null);
+
+  const submitNaturalEvent = useCallback(async (text) => {
+    const sid = sessionIdRef.current;
+    if (!sid || !text.trim()) return;
+    setNLState('interpreting');
+    try {
+      const res = await fetch(`${API_BASE}/session/${sid}/event/natural`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      setInterpretation(data.interpreted_as);
+      setNLState('interpreted');
+      setTimeout(() => {
+        setNLState('idle');
+        setInterpretation(null);
+      }, 2000);
+    } catch {
+      setNLState('idle');
+    }
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     connect();
@@ -120,5 +145,5 @@ export function useSimulation() {
     };
   }, []);
 
-  return { sessionId, districts, feedEntries, connected, connectionError, injectEvent, lastEvent, autopilotStatus, triggerAutopilot, eventLog, matchMinute };
+  return { sessionId, districts, feedEntries, connected, connectionError, injectEvent, lastEvent, autopilotStatus, triggerAutopilot, eventLog, matchMinute, nlState, interpretation, submitNaturalEvent };
 }
