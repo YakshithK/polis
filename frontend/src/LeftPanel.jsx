@@ -76,7 +76,9 @@ function PulseTab({ districts, activityByDistrict }) {
 
   // Affected population: districts with excitement > 65
   const affectedPop = list.reduce((sum, d) => {
-    if ((d.emotion?.excitement ?? 0) > 65) {
+    const em = d.emotion ?? {};
+    const peak = Math.max(em.excitement ?? 0, em.tension ?? 0, em.pride ?? 0, em.frustration ?? 0);
+    if (peak > 55) {
       const geo = DISTRICT_GEO[d.district_id];
       return sum + (geo?.population ?? 0);
     }
@@ -116,7 +118,7 @@ function PulseTab({ districts, activityByDistrict }) {
         <div className="city-pulse-number" style={{ fontSize: 'var(--text-xl)', color: pulseColor(cityPulse) }}>
           {fmtPop(affectedPop)}
         </div>
-        <div className="city-pulse-sub">currently excited (excitement &gt; 65)</div>
+        <div className="city-pulse-sub">residents in elevated districts (peak &gt; 55)</div>
       </div>
 
       <div className="stats-section">

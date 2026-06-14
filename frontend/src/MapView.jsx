@@ -253,7 +253,18 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   function syncFeature(feature, state) {
     const em = state.emotion ?? {};
     const map = mapRef.current;
-    const color = emotionToColor({ emotion: em });
+
+    // Only override to emotion color when emotion is meaningfully above baseline.
+    // Otherwise keep the district's assigned DISTRICT_COLOR so the map stays colorful at rest.
+    const excD = (em.excitement  ?? 50) - 50;
+    const tenD = (em.tension     ?? 50) - 50;
+    const priD = (em.pride       ?? 50) - 50;
+    const fruD = (em.frustration ?? 50) - 50;
+    const maxD = Math.max(excD, tenD, priD, fruD);
+    const color = maxD >= 4
+      ? emotionToColor({ emotion: em })
+      : (feature.properties.districtColor ?? 'hsl(24, 10%, 90%)');
+
     const pulse = activePulseRef.current;
     const distanceRank = state.distance_rank ?? 0;
     const pulseActive = pulse && Date.now() < pulse.expiresAt && distanceRank <= pulse.maxRank;

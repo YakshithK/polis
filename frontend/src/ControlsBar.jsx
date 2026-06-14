@@ -1,9 +1,9 @@
 import { useState, useEffect, memo } from 'react';
 
 const EVENTS = [
-  { label: '🚇 TTC Delay',      type: 'transit_strike',  team: null },
-  { label: '🌡️ Heat Wave',      type: 'heat_wave',       team: null },
-  { label: '⚽ Canada Scores',  type: 'street_party',    team: null },
+  { label: '🚇 TTC Delay',      type: 'transit_strike', team: null },
+  { label: '🌡️ Heat Wave',      type: 'heat_wave',      team: null },
+  { label: '⚽ Canada Scores',  type: 'goal',           team: 'Canada' },
 ];
 
 const EVENT_ICONS = {
@@ -22,22 +22,15 @@ const PLACEHOLDERS = [
 ];
 
 const SCENARIO_CHIPS = [
-  { emoji: '🦠', label: 'COVID returns',     prompt: 'A new COVID outbreak has just been announced. Schools and transit closing.' },
-  { emoji: '🌡️', label: 'Heat wave',         prompt: 'Extreme heat wave hits Toronto, temperature hits 42°C this afternoon.' },
-  { emoji: '⚡',  label: 'Power outage',      prompt: 'Major power outage across downtown and midtown, affecting transit and watch parties.' },
-  { emoji: '🎪', label: 'Festival downtown', prompt: 'A massive street festival has taken over King Street West and the Entertainment District.' },
-  { emoji: '🏆', label: 'Canada wins',       prompt: 'Canada just won the World Cup final in the 120th minute of extra time.' },
-  { emoji: '🚇', label: 'TTC strike',        prompt: 'TTC workers have just announced an emergency strike effective immediately.' },
-  { emoji: '🌧️', label: 'Thunderstorm',     prompt: 'Severe thunderstorm warning across Toronto, outdoor events being cancelled.' },
-  { emoji: '🎆', label: 'Celebration',       prompt: 'Spontaneous celebrations breaking out across the city after the match.' },
+  { emoji: '🚇', label: 'TTC Delay',       prompt: 'TTC workers have just announced an emergency strike effective immediately.' },
+  { emoji: '🌡️', label: 'Heat Wave',       prompt: 'Extreme heat wave hits Toronto, temperature hits 42°C this afternoon.' },
+  { emoji: '⚽', label: 'Canada Scores',   prompt: 'Canada just scored a goal! The entire city is erupting in celebration.' },
 ];
 
 export default memo(function ControlsBar({ onEvent, autopilotStatus, onAutopilot, strictness, onStrictness, nlState, interpretation, onNaturalEvent }) {
   const [text, setText] = useState('');
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [flashingBtn, setFlashingBtn] = useState(null);
-  const [chipStart, setChipStart] = useState(0);
-
   const autopilotActive = autopilotStatus === 'generating' || autopilotStatus === 'running';
 
   useEffect(() => {
@@ -56,8 +49,6 @@ export default memo(function ControlsBar({ onEvent, autopilotStatus, onAutopilot
     setFlashingBtn(ev.label);
     setTimeout(() => setFlashingBtn(null), 320);
   };
-
-  const visibleChips = SCENARIO_CHIPS.slice(chipStart, chipStart + 5);
 
   const autopilotLabel = {
     idle:       '🤖 Auto',
@@ -94,7 +85,7 @@ export default memo(function ControlsBar({ onEvent, autopilotStatus, onAutopilot
       {/* Scenario chips */}
       <div className="scenario-chips-row">
         <span className="scenario-chips-label">IDEAS</span>
-        {visibleChips.map(chip => (
+        {SCENARIO_CHIPS.map(chip => (
           <button
             key={chip.label}
             className="scenario-chip"
@@ -104,13 +95,6 @@ export default memo(function ControlsBar({ onEvent, autopilotStatus, onAutopilot
             {chip.emoji} {chip.label}
           </button>
         ))}
-        <button
-          className="scenario-chip-more"
-          onClick={() => setChipStart(s => (s + 5) % SCENARIO_CHIPS.length)}
-          title="More scenarios"
-        >
-          ›
-        </button>
       </div>
 
       {/* Quick actions */}

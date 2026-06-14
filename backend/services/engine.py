@@ -230,7 +230,7 @@ class SimulationEngine:
                         )
                         await self.inject_event(event, source="autopilot")
 
-                if self.simulation_clock > 0 and self.simulation_clock % 30 == 0:
+                if self.simulation_clock > 0 and self.simulation_clock % 60 == 0:
                     asyncio.create_task(self._run_agent_batch())
 
                 # Roll for organic events (4% chance per tick) if not suppressed
@@ -241,8 +241,8 @@ class SimulationEngine:
                         logger.info("Organic event suppressed (30s cooldown active)")
 
                 # Roll for ambient feed posts every 5 seconds (15% chance)
-                if self.simulation_clock > 0 and self.simulation_clock % 5 == 0:
-                    if random.random() < 0.15:
+                if self.simulation_clock > 0 and self.simulation_clock % 10 == 0:
+                    if random.random() < 0.10:
                         asyncio.create_task(self._trigger_ambient_feed_posts(states))
 
                 await self._broadcast_tick(states)
@@ -378,7 +378,7 @@ class SimulationEngine:
                 else:
                     archetype_map[state.district_id] = str(result)
 
-            roster = random.sample(iter_characters(), min(8, len(iter_characters())))
+            roster = random.sample(iter_characters(), min(4, len(iter_characters())))
             names = [person["name"] for person in roster]
             memory_docs = await self.db["citizen_memories"].find({
                 "scenario_id": self.scenario.scenario_id,
