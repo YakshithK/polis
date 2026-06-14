@@ -13,8 +13,11 @@ logger = logging.getLogger(__name__)
 # Module-level constants
 # ---------------------------------------------------------------------------
 
-DECAY_FACTOR: float = 0.9
+DECAY_FACTOR: float = 0.975
 BASELINE: float = 50.0
+CITY_EVENT_BOOST: float = 3.2
+CITY_EVENT_MIN_FACTOR: float = 0.35
+CITY_EVENT_DISTANCE_STEP: float = 0.08
 
 EVENT_SOURCE: dict[str, str] = {
     "transit_strike":   "downtown",
@@ -78,7 +81,7 @@ def compute_influence(
     return [(s, rank) for rank, s in enumerate(sorted_states)]
 
 
-def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0) -> None:
+def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0, impact_scale: float = 1.0) -> None:
     """Apply deterministic delta rules to a district state in-place.
 
     Deltas are scaled by event severity [0, 1].
@@ -91,7 +94,7 @@ def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0)
         if district_effects:
             for emotion, delta in district_effects.items():
                 current = getattr(state.emotion, emotion, 50.0)
-                setattr(state.emotion, emotion, current + delta * event.severity)
+                setattr(state.emotion, emotion, current + delta * event.severity * impact_scale)
         _clamp_state(state)
         return
 
@@ -99,13 +102,16 @@ def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0)
 
     if event.type in CITY_EVENT_DELTAS:
         deltas = CITY_EVENT_DELTAS[event.type]
+        source_boost = 1.7 if distance_rank == 0 else 1.0
+        distance_factor = max(CITY_EVENT_MIN_FACTOR, 1.0 - CITY_EVENT_DISTANCE_STEP * distance_rank)
+        factor = s * CITY_EVENT_BOOST * source_boost * distance_factor * impact_scale
         for key, delta in deltas.items():
             if key in {"social", "mobility"}:
                 current = getattr(state.activity, key)
-                setattr(state.activity, key, current + delta * s)
+                setattr(state.activity, key, current + delta * factor)
             else:
                 current = getattr(state.emotion, key)
-                setattr(state.emotion, key, current + delta * s)
+                setattr(state.emotion, key, current + delta * factor)
         _clamp_state(state)
         return
 
@@ -120,7 +126,7 @@ def apply_event(state: DistrictState, event: MatchEvent, distance_rank: int = 0)
 
     if event.type in ORGANIC_DELTAS:
         deltas = ORGANIC_DELTAS[event.type]
-        factor = max(0.0, 1.0 - 0.15 * distance_rank) * s
+        factor = max(0.35, 1.0 - 0.10 * distance_rank) * s * 1.5
         for key, delta in deltas.items():
             if key == "social":
                 state.activity.social += delta * factor

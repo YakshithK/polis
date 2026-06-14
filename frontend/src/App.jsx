@@ -86,7 +86,7 @@ export default function App() {
       {simulationStarted && (
         <>
           {/* Top center: Scorebar */}
-          <CityStatusBar matchMinute={matchMinute} />
+          <CityStatusBar matchMinute={matchMinute} districts={districts} />
 
           {/* Left: tabbed panel (Pulse / Events) */}
           <LeftPanel

@@ -37,6 +37,15 @@ function pulseColor(v) {
   return '#1a56db';
 }
 
+function peakEmotion(district) {
+  const e = district.emotion ?? {};
+  return Math.max(e.excitement ?? 0, e.tension ?? 0, e.pride ?? 0, e.frustration ?? 0);
+}
+
+function excessEmotion(district) {
+  return Math.max(0, peakEmotion(district) - 50);
+}
+
 function PulseTab({ districts, activityByDistrict }) {
   const list = Object.values(districts);
   const avg  = (fn) => list.length ? list.reduce((s, d) => s + (fn(d) ?? 0), 0) / list.length : 0;
@@ -47,10 +56,14 @@ function PulseTab({ districts, activityByDistrict }) {
   const avgFru = avg(d => d.emotion?.frustration);
 
   // City pulse = average peak activation across districts (responds to any emotion, not just excitement)
-  const cityPulse = Math.round(avg(d => Math.max(
-    d.emotion?.excitement ?? 0, d.emotion?.tension ?? 0,
-    d.emotion?.pride ?? 0, d.emotion?.frustration ?? 0,
-  )));
+  const ranked = [...list].sort((a, b) => peakEmotion(b) - peakEmotion(a));
+  const cityPulse = Math.round(
+    50 +
+    avg(d => excessEmotion(d)) * 2.6 +
+    (ranked[0] ? excessEmotion(ranked[0]) * 1.25 : 0) +
+    (ranked[1] ? excessEmotion(ranked[1]) * 0.75 : 0) +
+    (ranked[2] ? excessEmotion(ranked[2]) * 0.5 : 0)
+  );
 
   // Hottest = districts with the highest single-emotion peak right now
   const domEmotion = (d) => {
@@ -61,8 +74,7 @@ function PulseTab({ districts, activityByDistrict }) {
     if (peak === e.pride)       return { val: peak, label: 'Pride',       color: '#2563eb' };
     return                               { val: peak, label: 'Happiness',  color: '#ea580c' };
   };
-  const hottest = [...list]
-    .sort((a, b) => domEmotion(b).val - domEmotion(a).val)
+  const hottest = ranked
     .slice(0, 3);
 
   return (
@@ -75,10 +87,10 @@ function PulseTab({ districts, activityByDistrict }) {
 
       <div className="stats-section">
         <div className="stats-label">Mood Breakdown</div>
-        <MoodBar emotion="Happiness"   value={avgExc} />
-        <MoodBar emotion="Stress"      value={avgTen} />
-        <MoodBar emotion="pride"       value={avgPri} />
-        <MoodBar emotion="Frustration" value={avgFru} />
+        <MoodBar emotion="Happiness"   value={Math.min(100, avgExc + avg(d => excessEmotion(d)) * 0.9)} />
+        <MoodBar emotion="Stress"      value={Math.min(100, avgTen + avg(d => excessEmotion(d)) * 1.1)} />
+        <MoodBar emotion="Pride"       value={Math.min(100, avgPri + avg(d => excessEmotion(d)) * 0.8)} />
+        <MoodBar emotion="Frustration" value={Math.min(100, avgFru + avg(d => excessEmotion(d)) * 1.2)} />
       </div>
 
       <div className="stats-section">
@@ -91,7 +103,7 @@ function PulseTab({ districts, activityByDistrict }) {
               <span className="hottest-name">
                 {d.district_id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
               </span>
-              <span className="hottest-val" style={{ color: dom.color }}>{dom.label} {Math.round(dom.val)}</span>
+              <span className="hottest-val" style={{ color: dom.color }}>{dom.label} {Math.round(dom.val)} · +{Math.round(excessEmotion(d))}</span>
             </div>
           );
         })}

@@ -15,8 +15,32 @@ function simTime(matchMinute) {
   return `${date} · ${String(h12).padStart(2, '0')}:${String(min).padStart(2, '0')} ${ampm}`;
 }
 
-export default memo(function CityStatusBar({ matchMinute }) {
+function getCityPulse(districts) {
+  const list = Object.values(districts ?? {});
+  if (!list.length) return { pulse: 0, label: 'Calm' };
+
+  const peakFor = (district) => Math.max(
+    district.emotion?.excitement ?? 0,
+    district.emotion?.tension ?? 0,
+    district.emotion?.pride ?? 0,
+    district.emotion?.frustration ?? 0,
+  );
+
+  const avgPulse = list.reduce((sum, district) => sum + peakFor(district), 0) / list.length;
+  const hottest = [...list].sort((a, b) => peakFor(b) - peakFor(a))[0]?.emotion ?? {};
+  const label = Object.entries({
+    Happiness: hottest.excitement ?? 0,
+    Stress: hottest.tension ?? 0,
+    Pride: hottest.pride ?? 0,
+    Frustration: hottest.frustration ?? 0,
+  }).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Calm';
+
+  return { pulse: Math.round(avgPulse), label };
+}
+
+export default memo(function CityStatusBar({ matchMinute, districts }) {
   const clock = useMemo(() => simTime(matchMinute), [matchMinute]);
+  const cityPulse = useMemo(() => getCityPulse(districts), [districts]);
 
   return (
     <div className="scorebar glass">
@@ -27,6 +51,10 @@ export default memo(function CityStatusBar({ matchMinute }) {
         <span style={{ color: 'var(--surface-border)' }}>·</span>
         <span className="scorebar-clock" style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)', color: 'var(--ink-muted)' }}>
           {clock}
+        </span>
+        <span style={{ color: 'var(--surface-border)' }}>·</span>
+        <span style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)', color: 'var(--ink-muted)' }}>
+          Pulse {cityPulse.pulse} · {cityPulse.label}
         </span>
       </div>
     </div>

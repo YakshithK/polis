@@ -13,6 +13,15 @@ function pulseColor(value) {
   return '#3d7bff';
 }
 
+function peakEmotion(district) {
+  const e = district.emotion ?? {};
+  return Math.max(e.excitement ?? 0, e.tension ?? 0, e.pride ?? 0, e.frustration ?? 0);
+}
+
+function excessEmotion(district) {
+  return Math.max(0, peakEmotion(district) - 50);
+}
+
 export default function CityStatsPanel({ districts }) {
   const districtList = Object.values(districts);
 
@@ -21,15 +30,21 @@ export default function CityStatsPanel({ districts }) {
     return districtList.reduce((s, d) => s + (getter(d) ?? 0), 0) / districtList.length;
   };
 
-  const cityPulse    = Math.round(avg(d => d.emotion?.excitement));
+  const ranked = [...districtList].sort((a, b) => peakEmotion(b) - peakEmotion(a));
+  const cityPulse = Math.round(
+    50 +
+    avg(d => excessEmotion(d)) * 2.6 +
+    (ranked[0] ? excessEmotion(ranked[0]) * 1.25 : 0) +
+    (ranked[1] ? excessEmotion(ranked[1]) * 0.75 : 0) +
+    (ranked[2] ? excessEmotion(ranked[2]) * 0.5 : 0)
+  );
   const avgExc       = avg(d => d.emotion?.excitement);
   const avgTen       = avg(d => d.emotion?.tension);
   const avgPri       = avg(d => d.emotion?.pride);
   const avgFru       = avg(d => d.emotion?.frustration);
   const avgSupport   = Math.round(avg(d => d.alignment?.canada_support) || 64);
 
-  const hottest = [...districtList]
-    .sort((a, b) => (b.emotion?.excitement ?? 0) - (a.emotion?.excitement ?? 0))
+  const hottest = ranked
     .slice(0, 3);
 
   return (
@@ -44,10 +59,10 @@ export default function CityStatsPanel({ districts }) {
 
       <div className="stats-section">
         <div className="stats-label">Mood Breakdown</div>
-        <MoodBar emotion="excitement"  value={avgExc} />
-        <MoodBar emotion="tension"     value={avgTen} />
-        <MoodBar emotion="pride"       value={avgPri} />
-        <MoodBar emotion="frustration" value={avgFru} />
+        <MoodBar emotion="Happiness"   value={Math.min(100, avgExc + avg(d => excessEmotion(d)) * 0.9)} />
+        <MoodBar emotion="Stress"      value={Math.min(100, avgTen + avg(d => excessEmotion(d)) * 1.1)} />
+        <MoodBar emotion="Pride"       value={Math.min(100, avgPri + avg(d => excessEmotion(d)) * 0.8)} />
+        <MoodBar emotion="Frustration" value={Math.min(100, avgFru + avg(d => excessEmotion(d)) * 1.2)} />
       </div>
 
       <div className="stats-section">
@@ -56,7 +71,7 @@ export default function CityStatsPanel({ districts }) {
           <div key={d.district_id} className="hottest-row">
             <span>🔥</span>
             <span className="hottest-name">{d.district_id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
-            <span className="hottest-val">{Math.round(d.emotion?.excitement ?? 0)}</span>
+            <span className="hottest-val">{Math.round(peakEmotion(d))} · +{Math.round(excessEmotion(d))}</span>
           </div>
         ))}
         {!hottest.length && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Loading…</div>}

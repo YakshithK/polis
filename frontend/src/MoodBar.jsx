@@ -5,13 +5,19 @@ const EMOTION_COLORS = {
   frustration: '#b91c1c',
 };
 
+const EMOTION_ALIASES = {
+  happiness: 'excitement',
+  stress: 'tension',
+};
+
 export default function MoodBar({ emotion, value }) {
-  const color = EMOTION_COLORS[emotion] ?? '#3d7bff';
+  const key = EMOTION_ALIASES[String(emotion).toLowerCase()] ?? String(emotion).toLowerCase();
+  const color = EMOTION_COLORS[key] ?? '#3d7bff';
   const pct   = Math.max(0, Math.min(100, value ?? 0));
 
   return (
     <div className="mood-row">
-      <span className="mood-emotion-label">{emotion.charAt(0).toUpperCase() + emotion.slice(1)}</span>
+      <span className="mood-emotion-label">{String(emotion).charAt(0).toUpperCase() + String(emotion).slice(1)}</span>
       <div className="mood-bar-track">
         <div
           className="mood-bar-fill"

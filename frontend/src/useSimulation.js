@@ -127,7 +127,7 @@ export function useSimulation() {
     await fetch(`${API_BASE}/session/${sid}/event`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, team, minute: matchMinute, severity: 0.8 }),
+      body: JSON.stringify({ type, team, minute: matchMinute, severity: 1.0 }),
     });
   }, [matchMinute]);
 

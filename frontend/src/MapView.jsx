@@ -95,6 +95,20 @@ function replayStepMs(severity) {
   return 120;
 }
 
+function boostColor(color, severity, distanceRank = 0) {
+  const match = /^hsl\(([-\d.]+),\s*([-\d.]+)%,\s*([-\d.]+)%\)$/.exec(color);
+  if (!match) return color;
+
+  const hue = Number(match[1]);
+  const saturation = Number(match[2]);
+  const lightness = Number(match[3]);
+  const severityBoost = Math.max(0, Math.min(1, severity ?? 0.8));
+  const rankBoost = Math.max(0, 1 - distanceRank * 0.16);
+  const boostedSaturation = Math.min(100, saturation + 20 + severityBoost * 12);
+  const boostedLightness = Math.max(14, lightness - (18 + severityBoost * 20) * rankBoost);
+  return `hsl(${hue}, ${boostedSaturation}%, ${boostedLightness}%)`;
+}
+
 export default function MapView({ districts, stepMs = 120, lastEvent, simulationStarted, onDistrictClick, replayEvent, userAgent }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
@@ -110,6 +124,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
   const canvasRef = useRef(null);
   const onEventReceivedRef = useRef(null);
   const featureColorsRef = useRef(new Map());
+  const activePulseRef = useRef(null);
 
   districtsRef.current = districts;
 
@@ -176,10 +191,21 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
 
   function syncFeature(feature, state) {
     const em = state.emotion ?? {};
+    const map = mapRef.current;
+    const color = emotionToColor({ emotion: em });
+    const pulse = activePulseRef.current;
+    const distanceRank = state.distance_rank ?? 0;
+    const pulseActive = pulse && Date.now() < pulse.expiresAt && distanceRank <= pulse.maxRank;
+    const displayColor = pulseActive ? boostColor(color, pulse.severity, distanceRank) : color;
     feature.properties.excitement  = em.excitement  ?? 0;
     feature.properties.tension     = em.tension     ?? 0;
     feature.properties.pride       = em.pride       ?? 0;
     feature.properties.frustration = em.frustration ?? 0;
+    feature.properties.emotionColor = displayColor;
+    featureColorsRef.current.set(feature.id, displayColor);
+    if (map && map.getSource('toronto-districts')) {
+      map.setFeatureState({ source: 'toronto-districts', id: feature.id }, { flashColor: displayColor });
+    }
   }
 
   useEffect(() => {
@@ -208,6 +234,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         f.id = idx + 1;
         f.properties.districtColor = DISTRICT_COLORS[f.properties.district_id] ?? 'hsl(24, 10%, 90%)';
         f.properties.flashColor = f.properties.districtColor;
+        f.properties.emotionColor = f.properties.districtColor;
         featureColorsRef.current.set(f.id, f.properties.districtColor);
       });
 
@@ -224,7 +251,7 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
         paint: {
           'fill-color': ['coalesce', ['feature-state', 'flashColor'], ['get', 'districtColor'], 'hsl(24, 10%, 90%)'],
           'fill-opacity': 0.42,
-          'fill-color-transition': { duration: 700, delay: 0 },
+          'fill-color-transition': { duration: 2200, delay: 0 },
         },
       }, 'road-label');
 
@@ -624,6 +651,12 @@ export default function MapView({ districts, stepMs = 120, lastEvent, simulation
 
     if (isNewEvent) {
       lastProcessedEventRef.current = lastEvent;
+      activePulseRef.current = {
+        key: `${lastEvent.type}-${lastEvent.minute}-${lastEvent.team ?? 'none'}`,
+        severity: lastEvent.severity ?? 0.8,
+        expiresAt: Date.now() + 9000,
+        maxRank: Math.max(4, lastEvent.severity >= 0.8 ? 8 : 6),
+      };
       timeoutsRef.current.forEach(id => clearTimeout(id));
       timeoutsRef.current = [];
       pendingDistrictsRef.current.clear();

@@ -170,6 +170,9 @@ class SimulationEngine:
     async def _process_event(self, event: MatchEvent, *, source: str = "autopilot") -> None:
         """Apply deterministic delta rules to all districts, then broadcast."""
         self._last_event_type = event.type
+        impact_scale = 1.45 if source == "manual" else 1.0
+        if source == "natural":
+            impact_scale = 1.2
         if source == "manual":
             self._last_manual_event_time = time.time()
             logger.info("Manual event: %s. Suppressing organic events for 30s.", event.type)
@@ -178,7 +181,7 @@ class SimulationEngine:
             states = await self.get_all_states()
             influenced = compute_influence(event, states, self.scenario)
             for district_state, distance_rank in influenced:
-                apply_event(district_state, event, distance_rank=distance_rank)
+                apply_event(district_state, event, distance_rank=distance_rank, impact_scale=impact_scale)
                 await self._save_state(district_state)
         await self._broadcast_update(influenced, event, source=source)
         asyncio.create_task(self._broadcast_feed(influenced, event))
