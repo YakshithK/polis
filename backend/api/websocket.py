@@ -9,15 +9,19 @@ router = APIRouter()
 
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    # Always accept first — never 403, which causes the frontend to loop forever.
+    await websocket.accept()
     # Exact match first; fall back to any running engine (handles server restarts
-    # and React StrictMode double-mount where stop_all_engines kills the old session).
+    # and StrictMode double-mount where stop_all_engines kills the exact session).
     engine = _engines.get(session_id) or (next(iter(_engines.values()), None) if _engines else None)
     if not engine:
-        await websocket.close(code=4004)
+        # Tell the frontend there is no active engine so it must create a new session.
+        await websocket.send_json({"type": "no_session"})
+        await websocket.close(code=4000)
         return
     # Attach manager to engine if not already set
     engine.ws_manager = ws_manager
-    await ws_manager.connect(websocket)
+    ws_manager.active_connections.append(websocket)
     try:
         # Send current state snapshot on connect
         states = await engine.get_all_states()

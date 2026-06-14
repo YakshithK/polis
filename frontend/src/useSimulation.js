@@ -20,9 +20,16 @@ export function useSimulation() {
   const retryTimerRef = useRef(null);
   const mountedRef = useRef(true);
   const seenEventKeysRef = useRef(new Set());
+  // Always points to the current connect() — avoids stale-closure bugs in WS handlers
+  const connectRef = useRef(null);
 
   const handleMessage = useCallback((e) => {
     const msg = JSON.parse(e.data);
+    // Backend has no active engine for this session — create a fresh one
+    if (msg.type === 'no_session') {
+      setTimeout(() => connectRef.current?.(), 500);
+      return;
+    }
     if (msg.type === 'snapshot' || msg.type === 'update') {
       setDistricts(prev => {
         const next = { ...prev };
@@ -94,11 +101,12 @@ export function useSimulation() {
     ws.onclose = (event) => {
       if (!mountedRef.current) return;
       setConnected(false);
-      // code 1006 = abnormal close (403 rejection, server restart) → need a fresh session
+      // code 1006 = abnormal (server down/restart) → need a fresh session
+      // code 4000 = backend sent no_session → handleMessage already triggered connect
       // any other code = normal drop → reconnect to same session
       if (event.code === 1006) {
-        retryTimerRef.current = setTimeout(connect, 2000);
-      } else {
+        retryTimerRef.current = setTimeout(() => connectRef.current?.(), 2000);
+      } else if (event.code !== 4000) {
         retryTimerRef.current = setTimeout(() => openWs(sid), 2000);
       }
     };
@@ -121,10 +129,11 @@ export function useSimulation() {
       const msg = `Cannot reach backend at ${API_BASE} — ${err.message}`;
       setConnectionError(msg);
       console.error('[Algopolis]', msg);
-      // Retry session creation after 3s
-      retryTimerRef.current = setTimeout(connect, 3000);
+      retryTimerRef.current = setTimeout(() => connectRef.current?.(), 3000);
     }
   }, [openWs]);
+  // Keep ref current so closures in WS handlers always get the latest connect
+  connectRef.current = connect;
 
   const injectEvent = useCallback(async (type, team) => {
     const sid = sessionIdRef.current;
