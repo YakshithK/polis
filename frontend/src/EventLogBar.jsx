@@ -18,7 +18,7 @@ function eventDesc(ev) {
   return `${icon} ${ev.minute}' ${team} ${label}`;
 }
 
-export default function EventLogBar({ eventLog }) {
+export default function EventLogBar({ eventLog, onEventClick }) {
   const scrollRef = useRef(null);
 
   // Auto-scroll to newest (rightmost)
@@ -38,7 +38,12 @@ export default function EventLogBar({ eventLog }) {
           eventLog.map((ev, i) => (
             <span key={i} style={{ display: 'flex', alignItems: 'center' }}>
               {i > 0 && <span className="event-log-sep">·</span>}
-              <span className="event-log-item">
+              <span 
+                className="event-log-item"
+                onClick={() => onEventClick && onEventClick(ev)}
+                style={{ cursor: 'pointer' }}
+                title="Click to replay visual wave"
+              >
                 {EVENT_ICONS[ev.type] ?? '•'}&nbsp;
                 <span className="event-log-min">{ev.minute}'</span>&nbsp;
                 {TEAM_LABEL[ev.team] ?? ev.team}&nbsp;

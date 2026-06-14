@@ -23,6 +23,7 @@ export default function App() {
   const [score,             setScore]             = useState({ canada: 0, opponent: 0 });
   const [panelsVisible,     setPanelsVisible]     = useState(false);
   const [clickedDistrict,   setClickedDistrict]   = useState(null);
+  const [replayEvent,       setReplayEvent]       = useState(null);
 
   const autopilotActive = autopilotStatus === 'generating' || autopilotStatus === 'running';
 
@@ -83,6 +84,10 @@ export default function App() {
     setClickedDistrict(info); // null closes card
   };
 
+  const handleEventLogClick = (ev) => {
+    setReplayEvent({ ...ev, _replayTs: Date.now() });
+  };
+
   // Dismiss district card on ESC
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') setClickedDistrict(null); };
@@ -99,6 +104,7 @@ export default function App() {
         simulationStarted={simulationStarted}
         onFlyoverComplete={() => setFlyoverComplete(true)}
         onDistrictClick={handleDistrictClick}
+        replayEvent={replayEvent}
       />
 
       {/* Splash */}
@@ -141,7 +147,7 @@ export default function App() {
           )}
 
           {/* Bottom: Event log */}
-          <EventLogBar eventLog={eventLog} />
+          <EventLogBar eventLog={eventLog} onEventClick={handleEventLogClick} />
 
           {/* Bottom center: Controls */}
           <ControlsBar
