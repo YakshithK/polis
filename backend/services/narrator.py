@@ -188,3 +188,46 @@ def pick_key_districts(
         chosen.append(downtown)
 
     return chosen
+
+
+async def generate_ambient_post(state: DistrictState, clock_minute: int) -> tuple[str, str]:
+    """Return (ambient_text, character_name) for general vibe posts between events."""
+    district_name = state.district_id.replace("_", " ").title()
+    char = pick_character(state.district_id)
+    dominant = state.dominant
+    emotion = state.emotion
+
+    system = (
+        f"You are {char['name']}, a resident of {district_name}, Toronto, watching the FIFA World Cup 2026. "
+        f"Voice: {char['voice']}. "
+        "Write exactly ONE social media post about the general atmosphere, vibe, or mood of your neighbourhood right now. "
+        "Do NOT write about a specific match event like a goal or card. Comment on the tension, excitement, or feeling in the air. "
+        "Keep it strictly under 120 characters. Output only the post text, nothing else. No hashtags."
+    )
+    user = (
+        f"Match clock: {clock_minute} minutes.\n"
+        f"Your neighbourhood mood: {dominant} — "
+        f"excitement={emotion.excitement:.0f}, tension={emotion.tension:.0f}, "
+        f"frustration={emotion.frustration:.0f}, pride={emotion.pride:.0f}"
+    )
+
+    try:
+        client = _get_client()
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model="google/gemini-2.5-flash-lite",
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                max_tokens=80,
+                temperature=0.7,
+            ),
+            timeout=8.0,
+        )
+        text = response.choices[0].message.content or ""
+        return text.strip(), char["name"]
+    except Exception as exc:
+        logger.warning("Ambient AI call failed for %s: %s", state.district_id, exc)
+        return f"The mood in {district_name} is definitely {dominant} right now.", char["name"]
+
